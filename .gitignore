@@ -1,0 +1,29 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+
+# Data, warehouse and generated site (local only)
+data/
+site/
+*.duckdb
+
+# Private project notes
+CLAUDE.md
+PLAN-SESIONES.md
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# dbt artifacts
+dbt/target/
+dbt/logs/

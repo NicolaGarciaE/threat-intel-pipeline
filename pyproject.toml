@@ -1,0 +1,14 @@
+[project]
+name = "threat-intel-pipeline"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Nicola García Echavarría", email = "168017368+NicolaGarciaE@users.noreply.github.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.13.1"]
+build-backend = "uv_build"
