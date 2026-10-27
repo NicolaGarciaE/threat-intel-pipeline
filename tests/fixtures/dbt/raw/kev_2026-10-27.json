@@ -1,0 +1,135 @@
+{
+    "title": "CISA Catalog of Known Exploited Vulnerabilities",
+    "catalogVersion": "2026.10.27",
+    "dateReleased": "2026-10-27T00:00:00.0000Z",
+    "count": 8,
+    "vulnerabilities": [
+        {
+            "cveID": "CVE-2026-110447",
+            "vendorProject": "Collabora",
+            "product": "Collabora Online \u2013 Built-in CODE Server",
+            "vulnerabilityName": "Collabora Online \u2013 Built-in CODE Server OS Command Injection Vulnerability",
+            "dateAdded": "2026-10-23",
+            "shortDescription": "Collabora Collabora Online \u2013 Built-in CODE Server when used within the NextCloud platform contains an OS command injection vulnerability that allows for remote code execution when the CODE server isn't running.",
+            "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA\u2019s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA\u2019s \u201cForensics Triage Requirements\u201d (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+            "dueDate": "2026-10-26",
+            "knownRansomwareCampaignUse": "Unknown",
+            "forensicTriage": "Yes",
+            "notes": "https:\/\/help.nextcloud.com\/t\/to-collabora-built-in-user-update-asap\/250516 ; https:\/\/github.com\/CollaboraOnline\/online\/security\/advisories\/GHSA-g3vx-3m76-fghh ; BOD 26-04: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https:\/\/nvd.nist.gov\/vuln\/detail\/CVE-2026-110447",
+            "cwes": [
+                "CWE-78"
+            ]
+        },
+        {
+            "cveID": "CVE-2026-96656",
+            "vendorProject": "Plex",
+            "product": "Media Server",
+            "vulnerabilityName": "Plex Media Server External Control of File Name or Path Vulnerability",
+            "dateAdded": "2026-10-20",
+            "shortDescription": "Plex Media Server contains an external control of file name or path vulnerability which can allow an admin user to write arbitrary files that may be executed on load. This vulnerability can be chained with CVE-2026-96652, CVE-2026-96654, and CVE-2026-96655.",
+            "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA\u2019s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA\u2019s \u201cForensics Triage Requirements\u201d (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+            "dueDate": "2026-10-23",
+            "knownRansomwareCampaignUse": "Unknown",
+            "forensicTriage": "Yes",
+            "notes": "https:\/\/forums.plex.tv\/t\/important-security-update-for-plex-media-server-v1-43-2-and-earlier\/942319 ; ; BOD 26-04: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https:\/\/nvd.nist.gov\/vuln\/detail\/CVE-2026-96656",
+            "cwes": [
+                "CWE-73"
+            ]
+        },
+        {
+            "cveID": "CVE-2026-105133",
+            "vendorProject": "Ahsay",
+            "product": "AhsayCBS",
+            "vulnerabilityName": "Ahsay AhsayCBS Improper Authentication Vulnerability",
+            "dateAdded": "2026-10-14",
+            "shortDescription": "Ahsay AhsayCBS contains an improper authentication vulnerability that could allow a remote attacker to bypass authentication via manipulation of the random parameter in the API component\u2019s checkSysPwd function. This vulnerability can be chained with CVE-2026-105134.",
+            "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA\u2019s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA\u2019s \u201cForensics Triage Requirements\u201d (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+            "dueDate": "2026-10-17",
+            "knownRansomwareCampaignUse": "Unknown",
+            "forensicTriage": "No",
+            "notes": "https:\/\/www.ahsay.com\/en\/company\/announcements\/patch-cve-105133-105134-update ; ; BOD 26-04: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https:\/\/nvd.nist.gov\/vuln\/detail\/CVE-2026-105133",
+            "cwes": [
+                "CWE-287"
+            ]
+        },
+        {
+            "cveID": "CVE-2015-3246",
+            "vendorProject": "Red Hat",
+            "product": "Libuser",
+            "vulnerabilityName": "Red Hat Libuser Race Condition Vulnerability",
+            "dateAdded": "2026-08-26",
+            "shortDescription": "Red Hat libuser contains a race condition vulnerability that allows authenticated local users to corrupt the \/etc\/passwd file to cause a denial of service or privilege escalation. ",
+            "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA\u2019s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA\u2019s \u201cForensics Triage Requirements\u201d (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+            "dueDate": "2026-09-09",
+            "knownRansomwareCampaignUse": "Unknown",
+            "forensicTriage": "No",
+            "notes": "This vulnerability affects an open-source component, third-party library, protocol, or proprietary implementation that could be used by different products. For more information, please see: https:\/\/access.redhat.com\/articles\/1537873 ; BOD 26-04: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https:\/\/nvd.nist.gov\/vuln\/detail\/CVE-2015-3246",
+            "cwes": []
+        },
+        {
+            "cveID": "CVE-2026-59310",
+            "vendorProject": "Broadcom",
+            "product": "VMware vCenter",
+            "vulnerabilityName": "Broadcom VMware vCenter Path Traversal Vulnerability",
+            "dateAdded": "2026-08-18",
+            "shortDescription": "Broadcom VMware vCenter contains a path traversal vulnerability which could allow a threat actor with network access to vCenter to execute arbitrary code.",
+            "requiredAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA\u2019s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA\u2019s \u201cForensics Triage Requirements\u201d (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines.",
+            "dueDate": "2026-08-21",
+            "knownRansomwareCampaignUse": "Known",
+            "forensicTriage": "Yes",
+            "notes": "https:\/\/support.broadcom.com\/web\/ecx\/support-content-notification\/-\/external\/content\/SecurityAdvisories\/0\/38017 ; BOD 26-04: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements: https:\/\/www.cisa.gov\/news-events\/directives\/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk ; https:\/\/nvd.nist.gov\/vuln\/detail\/CVE-2026-59310",
+            "cwes": [
+                "CWE-22"
+            ]
+        },
+        {
+            "cveID": "CVE-2024-57728",
+            "vendorProject": "SimpleHelp ",
+            "product": "SimpleHelp",
+            "vulnerabilityName": "SimpleHelp Path Traversal Vulnerability",
+            "dateAdded": "2026-04-24",
+            "shortDescription": "SimpleHelp contains a path traversal vulnerability that allows admin users to upload arbitrary files anywhere on the file system by uploading a crafted zip file (i.e. zip slip). This can be exploited to execute arbitrary code on the host in the context of the SimpleHelp server user.",
+            "requiredAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+            "dueDate": "2026-05-08",
+            "knownRansomwareCampaignUse": "Known",
+            "forensicTriage": "No",
+            "notes": "https:\/\/simple-help.com\/kb---security-vulnerabilities-01-2025#security-vulnerabilities-in-simplehelp-5-5-7-and-earlier ; https:\/\/nvd.nist.gov\/vuln\/detail\/CVE-2024-57728",
+            "cwes": [
+                "CWE-22"
+            ]
+        },
+        {
+            "cveID": "CVE-2021-41773",
+            "vendorProject": "Apache",
+            "product": "HTTP Server",
+            "vulnerabilityName": "Apache HTTP Server Path Traversal Vulnerability",
+            "dateAdded": "2021-11-03",
+            "shortDescription": "Apache HTTP Server contains a path traversal vulnerability that allows an attacker to perform remote code execution if files outside directories configured by Alias-like directives are not under default \ufffdrequire all denied\ufffd or if CGI scripts are enabled. The original patch issued under this CVE ID is insufficient, please review remediation information under CVE-2021-42013.",
+            "requiredAction": "Apply updates per vendor instructions.",
+            "dueDate": "2021-11-17",
+            "knownRansomwareCampaignUse": "Known",
+            "forensicTriage": "No",
+            "notes": "https:\/\/nvd.nist.gov\/vuln\/detail\/CVE-2021-41773",
+            "cwes": [
+                "CWE-22"
+            ]
+        },
+        {
+            "cveID": "CVE-2099-0101",
+            "vendorProject": "Synthetic Vendor",
+            "product": "Synthetic Product",
+            "vulnerabilityName": "Synthetic Vendor Synthetic Product Test Record",
+            "dateAdded": "2026-09-01",
+            "shortDescription": "Synthetic record of the dbt sample (tests\/fixtures\/dbt); not CISA data.",
+            "requiredAction": "None: synthetic test record.",
+            "dueDate": "2026-09-22",
+            "knownRansomwareCampaignUse": "Known",
+            "forensicTriage": "No",
+            "notes": null,
+            "cwes": [
+                "CWE-89",
+                "CWE-79"
+            ]
+        }
+    ]
+}

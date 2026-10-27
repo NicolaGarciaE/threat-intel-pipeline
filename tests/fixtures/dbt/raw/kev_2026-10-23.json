@@ -2,7 +2,7 @@
     "title": "CISA Catalog of Known Exploited Vulnerabilities",
     "catalogVersion": "2026.10.23",
     "dateReleased": "2026-10-23T00:00:00.0000Z",
-    "count": 7,
+    "count": 8,
     "vulnerabilities": [
         {
             "cveID": "CVE-2026-110447",
@@ -112,6 +112,23 @@
             "notes": "https:\/\/nvd.nist.gov\/vuln\/detail\/CVE-2021-41773",
             "cwes": [
                 "CWE-22"
+            ]
+        },
+        {
+            "cveID": "CVE-2099-0101",
+            "vendorProject": "Synthetic Vendor",
+            "product": "Synthetic Product",
+            "vulnerabilityName": "Synthetic Vendor Synthetic Product Test Record",
+            "dateAdded": "2026-09-01",
+            "shortDescription": "Synthetic record of the dbt sample (tests\/fixtures\/dbt); not CISA data.",
+            "requiredAction": "None: synthetic test record.",
+            "dueDate": "2026-09-22",
+            "knownRansomwareCampaignUse": "Known",
+            "forensicTriage": "No",
+            "notes": null,
+            "cwes": [
+                "CWE-79",
+                "CWE-89"
             ]
         }
     ]

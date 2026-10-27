@@ -11,6 +11,10 @@ A small sample to run `dbt build` without the network, in CI and locally
   file holds, the dates of the files, `count`, and `catalogVersion` and
   `dateReleased` (set to the date of the file). None of these files is a real
   KEV snapshot.
+- **Synthetic KEV record**: CVE-2099-0101 (`Synthetic Vendor`) is entirely made
+  up and is not CISA data. It is the only record whose fields change, so the KEV
+  history has changes to track. One of its versions has `notes` as a JSON null:
+  real KEV has no nulls, but the raw tests allow them.
 - **EPSS**: entirely synthetic, including the scores given to real CVE ids taken
   from KEV. They are not FIRST data and must never be presented as such.
   `model_version` is `v2099.01.01` as a marker, and CVEs that only exist in
@@ -29,9 +33,19 @@ A small sample to run `dbt build` without the network, in CI and locally
 | C | CVE-2026-105133 | 2026-10-14 | dateAdded before its first snapshot; forensicTriage No |
 | D | CVE-2026-53362 | 2026-08-27 | disappears from KEV; empty cwes |
 | E1 | CVE-2021-41773 | 2021-11-03 | Known; U+FFFD (in CISA's own text) in shortDescription |
-| E2 | CVE-2026-59310 | 2026-08-18 | Known and Yes |
+| E2 | CVE-2026-59310 | 2026-08-18 | Known and Yes; disappears from KEV on 10-20 and returns on 10-23 |
 | E3 | CVE-2015-3246 | 2026-08-26 | Unknown and No; empty cwes |
 | E4 | CVE-2024-57728 | 2026-04-24 | Known; vendorProject `'SimpleHelp '` with a trailing space |
+| S | CVE-2099-0101 | 2026-09-01 | synthetic; the only KEV record that changes (versions below) |
+
+Versions of S:
+
+| Version | KEV files | Change |
+|---|---|---|
+| v1 | 09-20, 10-13 | `notes` `""`, `cwes` `[]`, knownRansomwareCampaignUse `Unknown` |
+| v2 | 10-16, 10-20 | `notes` becomes JSON null |
+| v3 | 10-23, 10-24 | `cwes` `["CWE-79","CWE-89"]`, knownRansomwareCampaignUse `Known` |
+| v4 | 10-27 | `cwes` `["CWE-89","CWE-79"]`: only the order changes |
 
 Synthetic EPSS-only CVEs:
 
@@ -40,23 +54,28 @@ Synthetic EPSS-only CVEs:
 | CVE-2099-0001 | every day | `0.5` / `1.0` | one decimal; percentile 1.0 |
 | CVE-2099-0002 | every day | `3e-05` or `0.00003` / `1e-05` | scientific notation; the same epss written two ways |
 | CVE-2099-0003 | until 2026-10-14 | `0.00012` / `0.0` | disappears from EPSS; percentile 0.0 |
-| CVE-2099-0004 | from 2026-10-20 | `0.04` / `0.5` | appears in EPSS |
+| CVE-2099-0004 | from 2026-10-13 | `0.04` / `0.5` | appears in EPSS |
+| CVE-2099-0005 | all but 10-13 and 10-14 | `0.0007` / `0.15` | disappears from EPSS and returns with the same epss |
+
+Every EPSS file has 12 rows: each CVE that leaves is replaced on the same day,
+because the manifests apply the 1% drop check of the ingest.
 
 ## Calendar (`raw/`)
 
 | snapshot_date | KEV | EPSS | Cases |
 |---|---|---|---|
-| 2026-09-20 | E1 E2 E3 E4 D | 11 rows | start date; −30 days of A |
-| 2026-09-23 | missing | 11 rows | KEV missing; −30 days of B |
-| 2026-10-13 | E1 E2 E3 E4 D | 11 rows | −7 days of A |
-| 2026-10-14 | missing | 11 rows (last day of 0003) | KEV missing; dateAdded of C |
-| 2026-10-16 | E1 E2 E3 E4 D (C left out on purpose) | missing | EPSS missing, so B has no EPSS at −7 days |
-| 2026-10-20 | E1 E2 E3 E4 D A C | 11 rows (0004 appears) | dateAdded of A; first snapshot of A and of C; two manifests |
-| 2026-10-23 | E1 E2 E3 E4 A B C (D removed) | 11 rows | dateAdded of B; D disappears from KEV |
-| 2026-10-24 | E1 E2 E3 E4 A B C | 11 rows | consecutive day; D still absent |
+| 2026-09-20 | E1 E2 E3 E4 D S | 12 rows | start date; −30 days of A |
+| 2026-09-23 | missing | 12 rows | KEV missing; −30 days of B |
+| 2026-10-13 | E1 E2 E3 E4 D S | 12 rows (0004 appears, 0005 absent) | −7 days of A |
+| 2026-10-14 | missing | 12 rows (last day of 0003) | KEV missing; dateAdded of C |
+| 2026-10-16 | E1 E2 E3 E4 D S (C left out on purpose) | missing | EPSS missing, so B has no EPSS at −7 days; S v2 |
+| 2026-10-20 | E1 E3 E4 D A C S (E2 left out) | 12 rows (0005 returns) | dateAdded of A; first snapshot of A and of C; E2 disappears; two manifests (EPSS late) |
+| 2026-10-23 | E1 E2 E3 E4 A B C S (D removed) | 12 rows | dateAdded of B; D disappears; E2 returns; S v3; two manifests (KEV late) |
+| 2026-10-24 | same as 10-23 | 12 rows, same epss as 10-23 | a day without any change in either source |
+| 2026-10-27 | same records; S v4 | 12 rows (A changes) | the first change after a day without changes |
 
-Expected rows: 36 in `stg_kev` and 77 in `stg_epss`. Every other day between
-2026-09-20 and 2026-10-24 has no file of either source.
+Expected rows: 49 in `stg_kev` and 96 in `stg_epss`. Every other day between
+2026-09-20 and 2026-10-27 has no file of either source.
 
 Question 1 (start date 2026-09-20; CVEs added after it: A, B and C):
 
@@ -66,10 +85,48 @@ Question 1 (start date 2026-09-20; CVEs added after it: A, B and C):
 | B | 2026-09-23: 0.32 | 2026-10-16: no coverage | 2026-10-23: 0.95 |
 | C | 2026-09-14: no coverage | 2026-10-07: no coverage | 2026-10-14: 0.4 |
 
-Manifests: one per day with a file. A source without its file that day is
-`failed`, as the real ingest would write it. 2026-10-20 has two: at 15:17:05
-EPSS failed, and at 16:30:05 both sources are ok (KEV `already_present`). The
-latest manifest of the day is the one that counts.
+Manifests: one per run. A source without its file that day is `failed`, as the
+real ingest would write it. Two days have a same-day retry, and the latest
+manifest of the day is the one that counts:
+
+- 2026-10-20: at 15:17:05 EPSS failed, and at 16:30:05 both sources are ok (KEV
+  `already_present`).
+- 2026-10-23: at 15:17:05 KEV failed, and at 16:30:05 both sources are ok (EPSS
+  `already_present`).
+
+## Expected history (session 3)
+
+KEV history (`cve_id`, all record fields but `cveID` watched): 13 rows, 8 current.
+
+| CVE | valid_from | valid_to | Why |
+|---|---|---|---|
+| A | 2026-10-20 | null | first snapshot |
+| B | 2026-10-23 | null | first snapshot (second attempt of the day) |
+| C | 2026-10-20 | null | first snapshot, after its dateAdded |
+| D | 2026-09-20 | 2026-10-23 | disappears |
+| E1, E3, E4 | 2026-09-20 | null | no change |
+| E2 | 2026-09-20 | 2026-10-20 | disappears… |
+| E2 | 2026-10-23 | null | …and returns: a new period |
+| S | 2026-09-20 | 2026-10-16 | v1 |
+| S | 2026-10-16 | 2026-10-23 | v2 |
+| S | 2026-10-23 | 2026-10-27 | v3 |
+| S | 2026-10-27 | null | v4 |
+
+EPSS history (`cve_id`, `epss` watched as an exact decimal): 22 rows, 12 current.
+
+| CVE | Periods (valid_from → valid_to: epss) |
+|---|---|
+| A | 09-20 → 10-13: 0.0121; 10-13 → 10-20: 0.0457; 10-20 → 10-27: 0.3105; 10-27 → null: 0.4 |
+| B | 09-20 → 09-23: 0.002; 09-23 → 10-20: 0.0021; 10-20 → 10-23: 0.09; 10-23 → null: 0.2 |
+| C | 09-20 → 10-13: 0.0008; 10-13 → 10-14: 0.0011; 10-14 → null: 0.003 |
+| D, E1, E2, E3, E4, 0001 | 09-20 → null |
+| 0002 | 09-20 → null: one period, although the text alternates `3e-05` and `0.00003` |
+| 0003 | 09-20 → 10-20: 0.00012 (disappears) |
+| 0004 | 10-13 → null: 0.04 (appears) |
+| 0005 | 09-20 → 10-13: 0.0007; 10-20 → null: 0.0007 (returns: a new period) |
+
+Missing days, per source, from the start date to the last day of that source:
+31 for KEV (7 days with data out of 38) and 30 for EPSS (8 out of 38).
 
 ## `invalid/`
 
@@ -81,10 +138,14 @@ Its manifest is ok: the raw tests do not check decimals.
 
 - FAIL, 1 row each: `source_max_decimal_places_raw_epss_epss__5` and
   `source_max_decimal_places_raw_epss_percentile__5`;
-- SKIP: `stg_epss`, its 8 tests, and the 2 tests that compare staging with the
-  manifests (`assert_staging_rows_match_manifests` and
-  `assert_manifest_bookkeeping`), because they depend on `stg_epss`;
-- PASS: `stg_kev` and its 13 tests.
+- SKIP, 40: `stg_epss`, its 8 tests, and the 2 tests that compare staging with
+  the manifests (`assert_staging_rows_match_manifests` and
+  `assert_manifest_bookkeeping`), because they depend on `stg_epss`; the 4
+  marts, because `mart_source_days` reads `stg_epss` and `mart_kev_history`,
+  `mart_epss_history` and `mart_source_gaps` depend on it (so the KEV history
+  is not updated either); their 24 tests; and
+  `assert_start_date_is_first_complete_day`;
+- PASS, 14: `stg_kev` and its 13 tests.
 
 ## Regenerate
 
@@ -101,9 +162,6 @@ file and that the manifests match the files.
 
 ## Notes for later sessions
 
-- Session 3 (SCD2): CVE-2099-0002 writes the same epss as `3e-05` and
-  `0.00003` on alternate days. Compared as an exact decimal it never changes,
-  so it must stay in a single period; compared as text it would split into 7.
 - Session 4 (CI): `dbt source freshness` is not run on this sample: its dates
   are fixed in the past, so it would always fail with error. CI runs only
   `dbt build` on it.

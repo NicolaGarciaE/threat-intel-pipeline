@@ -1,0 +1,119 @@
+models:
+  - name: mart_source_days
+    description: >-
+      Days loaded into the marts: one row per source and snapshot_date from the
+      start date on, with its rows in staging. Incremental. An incremental run
+      stops before writing if a raw file of a day already passed was never
+      loaded (late), so the marts never differ from a rebuild in silence.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source, snapshot_date]
+    columns:
+      - name: source
+        description: kev or epss.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: A day with a raw file of the source.
+        data_tests:
+          - not_null
+      - name: rows
+        description: Rows of the source in staging that day.
+
+  - name: mart_source_gaps
+    description: >-
+      Days missing from each source: every calendar day from the start date to
+      the last day of that source without data of that source. The histories
+      assume that nothing changed on those days.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source, snapshot_date]
+    columns:
+      - name: source
+        description: kev or epss.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: The missing day.
+        data_tests:
+          - not_null
+
+  # The SCD2 tests read only the history, except the last three, which read
+  # staging with a date constant: the last day of the source, or test_since.
+  - name: mart_kev_history
+    description: >-
+      SCD type 2 history of the KEV catalog: one row per cve_id and period in
+      which its 11 record fields did not change. A CVE that leaves the catalog
+      and returns gets a new period. Incremental; see macros/scd2_history.sql.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [cve_id, valid_from]
+      - scd2_no_overlaps
+      - scd2_valid_range
+      - scd2_current_flag
+      - scd2_one_current_per_present_key:
+          arguments:
+            source_name: kev
+      - scd2_starts_in_staging:
+          arguments:
+            source_name: kev
+    columns:
+      - name: cve_id
+        description: cveID.
+        data_tests:
+          - not_null
+          - relationships_to_staging:
+              arguments:
+                source_name: kev
+      - name: valid_from
+        description: First day of the period, included.
+        data_tests:
+          - not_null
+      - name: valid_to
+        description: >-
+          First day the period no longer holds, excluded: a field changed or the
+          CVE was missing from the catalog. Null while the period is current.
+      - name: is_current
+        description: True while the period is open (valid_to is null).
+
+  - name: mart_epss_history
+    description: >-
+      SCD type 2 history of EPSS: one row per cve_id and period in which its epss
+      did not change, compared as an exact decimal. percentile is not
+      historized. Incremental; see macros/scd2_history.sql.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [cve_id, valid_from]
+      - scd2_no_overlaps
+      - scd2_valid_range
+      - scd2_current_flag
+      - scd2_one_current_per_present_key:
+          arguments:
+            source_name: epss
+      - scd2_starts_in_staging:
+          arguments:
+            source_name: epss
+    columns:
+      - name: cve_id
+        description: cve.
+        data_tests:
+          - not_null
+          - relationships_to_staging:
+              arguments:
+                source_name: epss
+      - name: epss
+        description: epss of the period, exact.
+      - name: valid_from
+        description: First day of the period, included.
+        data_tests:
+          - not_null
+      - name: valid_to
+        description: >-
+          First day the period no longer holds, excluded: epss changed or the CVE
+          was missing from the file. Null while the period is current.
+      - name: is_current
+        description: True while the period is open (valid_to is null).

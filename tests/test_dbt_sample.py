@@ -19,7 +19,7 @@ FOLDERS = ("raw", "invalid")
 SOURCES = {"kev": kev, "epss": epss}
 RAW_NAME = re.compile(r"(?P<source>kev|epss)_(?P<date>\d{4}-\d{2}-\d{2})\..+")
 SYNTHETIC_WARNING = "synthetic test manifest (tests/fixtures/dbt): not a real download"
-EXPECTED_ROWS = {"kev": 36, "epss": 77}  # raw/, see README.md
+EXPECTED_ROWS = {"kev": 49, "epss": 96}  # raw/, see README.md
 
 
 def raw_files(folder: str) -> list[Path]:

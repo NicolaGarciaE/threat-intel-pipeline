@@ -2,7 +2,8 @@
 
 - KEV: 8 records copied verbatim from the real KEV raw of 2026-10-26 (CC0). Which
   records each daily file holds, and its count, catalogVersion and dateReleased,
-  are fabricated.
+  are fabricated. One more record, CVE-2099-0101, is entirely synthetic: the only
+  one whose fields change, so the KEV history has changes to track.
 - EPSS: synthetic, with the exact structure of the real files.
 - Manifests: synthetic, built with the session 1 functions; url, final_url and
   downloaded_at are null because nothing was downloaded.
@@ -45,46 +46,86 @@ KEV_RECORDS = {
     "E4": ("CVE-2024-57728", "2026-04-24"),
 }
 BASE = ("E1", "E2", "E3", "E4")
-# Fabricated: the records of each KEV file. C is left out on 10-16 (dateAdded
-# before its first snapshot) and D is removed from 10-23 on (disappears).
+# Fabricated: the real records of each KEV file. C is left out on 10-16 (dateAdded
+# before its first snapshot), D is removed from 10-23 on (disappears) and E2 is
+# left out on 10-20 only (disappears and returns). 10-24 repeats 10-23: a day
+# without changes, followed by one with a change (10-27, in the synthetic record).
 KEV_DAYS = {
     "2026-09-20": BASE + ("D",),
     "2026-10-13": BASE + ("D",),
     "2026-10-16": BASE + ("D",),
-    "2026-10-20": BASE + ("D", "A", "C"),
+    "2026-10-20": ("E1", "E3", "E4", "D", "A", "C"),
     "2026-10-23": BASE + ("A", "B", "C"),
     "2026-10-24": BASE + ("A", "B", "C"),
+    "2026-10-27": BASE + ("A", "B", "C"),
 }
 
-EPSS_DAYS = ("2026-09-20", "2026-09-23", "2026-10-13", "2026-10-14", "2026-10-20", "2026-10-23", "2026-10-24")
+# Synthetic KEV record (not CISA data), in every KEV file after the real ones.
+# v2 turns notes from "" into a JSON null: real KEV has no nulls, but the raw tests
+# allow them, so the history must compare NULL safely. v3 changes cwes and
+# knownRansomwareCampaignUse; v4 only reorders cwes, which is a change as published.
+SYNTHETIC_V1 = {
+    "cveID": "CVE-2099-0101",
+    "vendorProject": "Synthetic Vendor",
+    "product": "Synthetic Product",
+    "vulnerabilityName": "Synthetic Vendor Synthetic Product Test Record",
+    "dateAdded": "2026-09-01",
+    "shortDescription": "Synthetic record of the dbt sample (tests/fixtures/dbt); not CISA data.",
+    "requiredAction": "None: synthetic test record.",
+    "dueDate": "2026-09-22",
+    "knownRansomwareCampaignUse": "Unknown",
+    "forensicTriage": "No",
+    "notes": "",
+    "cwes": [],
+}
+SYNTHETIC_V2 = SYNTHETIC_V1 | {"notes": None}
+SYNTHETIC_V3 = SYNTHETIC_V2 | {"knownRansomwareCampaignUse": "Known", "cwes": ["CWE-79", "CWE-89"]}
+SYNTHETIC_V4 = SYNTHETIC_V3 | {"cwes": ["CWE-89", "CWE-79"]}
+SYNTHETIC_KEV_DAYS = {
+    "2026-09-20": SYNTHETIC_V1,
+    "2026-10-13": SYNTHETIC_V1,
+    "2026-10-16": SYNTHETIC_V2,
+    "2026-10-20": SYNTHETIC_V2,
+    "2026-10-23": SYNTHETIC_V3,
+    "2026-10-24": SYNTHETIC_V3,
+    "2026-10-27": SYNTHETIC_V4,
+}
+
+EPSS_DAYS = (
+    "2026-09-20", "2026-09-23", "2026-10-13", "2026-10-14", "2026-10-20", "2026-10-23", "2026-10-24", "2026-10-27",
+)
 # Synthetic (epss, percentile) texts, one per EPSS day; None: absent that day.
-# Keys are KEV labels or synthetic CVE ids.
+# Keys are KEV labels or synthetic CVE ids. 10-24 repeats every epss of 10-23 (a
+# day without changes) and A changes on 10-27.
 EPSS_VALUES = {
     "A": [("0.0121", "0.61"), ("0.0121", "0.612"), ("0.0457", "0.83"), ("0.0457", "0.831"),
-          ("0.3105", "0.97"), ("0.3105", "0.971"), ("0.3105", "0.972")],
+          ("0.3105", "0.97"), ("0.3105", "0.971"), ("0.3105", "0.972"), ("0.4", "0.98")],
     "B": [("0.002", "0.31"), ("0.0021", "0.32"), ("0.0021", "0.33"), ("0.0021", "0.331"),
-          ("0.09", "0.9"), ("0.2", "0.95"), ("0.2", "0.951")],
+          ("0.09", "0.9"), ("0.2", "0.95"), ("0.2", "0.951"), ("0.2", "0.952")],
     "C": [("0.0008", "0.2"), ("0.0008", "0.21"), ("0.0011", "0.25"), ("0.003", "0.4"),
-          ("0.003", "0.41"), ("0.003", "0.42"), ("0.003", "0.42")],
-    "D": [("0.0091", "0.74")] * 7,
-    "E1": [("0.92", "0.99")] * 7,
-    "E2": [("0.71", "0.97")] * 7,
-    "E3": [("0.0042", "0.6")] * 7,
-    "E4": [("0.38", "0.95")] * 7,
-    "CVE-2099-0001": [("0.5", "1.0")] * 7,
+          ("0.003", "0.41"), ("0.003", "0.42"), ("0.003", "0.42"), ("0.003", "0.42")],
+    "D": [("0.0091", "0.74")] * 8,
+    "E1": [("0.92", "0.99")] * 8,
+    "E2": [("0.71", "0.97")] * 8,
+    "E3": [("0.0042", "0.6")] * 8,
+    "E4": [("0.38", "0.95")] * 8,
+    "CVE-2099-0001": [("0.5", "1.0")] * 8,
     # The same epss written two ways (CLAUDE.md §5): the SCD2 must see one value.
-    "CVE-2099-0002": [("3e-05", "1e-05"), ("0.00003", "1e-05"), ("3e-05", "1e-05"), ("0.00003", "1e-05"),
-                      ("3e-05", "1e-05"), ("0.00003", "1e-05"), ("3e-05", "1e-05")],
-    "CVE-2099-0003": [("0.00012", "0.0")] * 4 + [None] * 3,
-    "CVE-2099-0004": [None] * 4 + [("0.04", "0.5")] * 3,
+    "CVE-2099-0002": [("3e-05", "1e-05"), ("0.00003", "1e-05")] * 4,
+    "CVE-2099-0003": [("0.00012", "0.0")] * 4 + [None] * 4,
+    # 0004 appears on the first day 0005 is absent and 0005 returns on the day 0003
+    # leaves: every day has 12 rows, so no manifest fails the 1% drop check.
+    "CVE-2099-0004": [None] * 2 + [("0.04", "0.5")] * 6,
+    "CVE-2099-0005": [("0.0007", "0.15")] * 2 + [None] * 2 + [("0.0007", "0.15")] * 4,
 }
 # invalid/: the files of this day, with two EPSS values of more than 5 decimals.
 INVALID_DAY = "2026-10-20"
 INVALID_VALUES = {"CVE-2099-0001": ("0.123456", "1.0"), "CVE-2099-0002": ("3e-05", "1.5e-06")}
 
 # Synthetic runs: (snapshot_date, start time UTC, sources forced to fail). A
-# source without its file that day is failed too. 2026-10-20 has two attempts:
-# EPSS failed in the first one, so the latest manifest of the day is the one to use.
+# source without its file that day is failed too. Two days have a same-day retry,
+# so the latest manifest of the day is the one to use: EPSS failed in the first
+# attempt of 2026-10-20, and KEV in the first attempt of 2026-10-23.
 RUNS = [
     ("2026-09-20", "151705", ()),
     ("2026-09-23", "151705", ()),
@@ -93,12 +134,14 @@ RUNS = [
     ("2026-10-16", "151705", ()),
     ("2026-10-20", "151705", ("epss",)),
     ("2026-10-20", "163005", ()),
-    ("2026-10-23", "151705", ()),
+    ("2026-10-23", "151705", ("kev",)),
+    ("2026-10-23", "163005", ()),
     ("2026-10-24", "151705", ()),
+    ("2026-10-27", "151705", ()),
 ]
 INVALID_RUNS = [(INVALID_DAY, "151705", ())]
 WARNING = "synthetic test manifest (tests/fixtures/dbt): not a real download"
-EXPECTED_ROWS = {"kev": 36, "epss": 77}
+EXPECTED_ROWS = {"kev": 49, "epss": 96}
 SOURCES = {"kev": kev, "epss": epss}
 
 
@@ -176,8 +219,9 @@ def prepare_empty(folder: Path) -> None:
 
 
 def kev_file(records: dict[str, dict], title: str, real_order: dict[str, int], day: str, labels: tuple[str, ...]) -> bytes:
-    """A KEV file of the sample: verbatim records, in the order of the real file."""
-    selected = [records[label] for label in labels]
+    """A KEV file of the sample: verbatim records in the order of the real file, then the synthetic one."""
+    selected = sorted((records[label] for label in labels), key=lambda record: real_order[record["cveID"]])
+    selected.append(SYNTHETIC_KEV_DAYS[day])
     for record in selected:
         if record["dateAdded"] > day:
             raise SampleError(f"{record['cveID']} cannot be in the catalog of {day}, before its dateAdded")
@@ -186,7 +230,7 @@ def kev_file(records: dict[str, dict], title: str, real_order: dict[str, int], d
         "catalogVersion": day.replace("-", "."),
         "dateReleased": f"{day}T00:00:00.0000Z",
         "count": len(selected),
-        "vulnerabilities": sorted(selected, key=lambda record: real_order[record["cveID"]]),
+        "vulnerabilities": selected,
     }
     return serialize_kev(catalog)
 
