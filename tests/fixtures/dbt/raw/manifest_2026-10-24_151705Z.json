@@ -1,0 +1,66 @@
+{
+  "manifest_version": 1,
+  "snapshot_date": "2026-10-24",
+  "run_started_at": "2026-10-24T15:17:05Z",
+  "status": "ok",
+  "warnings": [
+    "synthetic test manifest (tests/fixtures/dbt): not a real download"
+  ],
+  "sources": {
+    "kev": {
+      "status": "ok",
+      "action": "downloaded",
+      "file": "kev_2026-10-24.json",
+      "url": null,
+      "final_url": null,
+      "downloaded_at": null,
+      "bytes": 11106,
+      "rows": 7,
+      "sha256": "b8010353bc08ec71b2d1b32731dd02a1ee00ddb29d8fd8e56e519c2b132d2291",
+      "catalogVersion": "2026.10.24",
+      "dateReleased": "2026-10-24T00:00:00.0000Z",
+      "count": 7,
+      "drop_check": {
+        "status": "ok",
+        "rows": 7,
+        "max_drop_percent": 1,
+        "reference_manifest": "manifest_2026-10-23_151705Z.json",
+        "reference_snapshot_date": "2026-10-23",
+        "reference_rows": 7,
+        "reference_age_days": 1,
+        "reason": null,
+        "summary": "no drop: 7 rows vs 7 on 2026-10-23 (+0)"
+      },
+      "error": null,
+      "quarantine_file": null,
+      "excerpt": null
+    },
+    "epss": {
+      "status": "ok",
+      "action": "downloaded",
+      "file": "epss_2026-10-24.csv.gz",
+      "url": null,
+      "final_url": null,
+      "downloaded_at": null,
+      "bytes": 216,
+      "rows": 11,
+      "sha256": "f2c475c4e62b499c3e28e6d56729be82d000da063e6355e939fcbd3575994207",
+      "model_version": "v2099.01.01",
+      "score_date": "2026-10-24T12:03:22Z",
+      "drop_check": {
+        "status": "ok",
+        "rows": 11,
+        "max_drop_percent": 1,
+        "reference_manifest": "manifest_2026-10-23_151705Z.json",
+        "reference_snapshot_date": "2026-10-23",
+        "reference_rows": 11,
+        "reference_age_days": 1,
+        "reason": null,
+        "summary": "no drop: 11 rows vs 11 on 2026-10-23 (+0)"
+      },
+      "error": null,
+      "quarantine_file": null,
+      "excerpt": null
+    }
+  }
+}

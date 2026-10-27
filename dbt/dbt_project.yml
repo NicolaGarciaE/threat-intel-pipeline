@@ -1,0 +1,27 @@
+# dbt project of threat-intel-pipeline. Run every command from the repo root:
+#   uv run dbt <command> --project-dir dbt --profiles-dir dbt --target <real|fixtures>
+name: threat_intel_pipeline
+profile: threat_intel_pipeline
+
+flags:
+  send_anonymous_usage_stats: false
+
+# Raw directory of each target, relative to the repo root. The target also picks
+# the DuckDB file (profiles.yml), so data and databases never mix. A target
+# without an entry here fails at parse time ("Required var ... not found").
+vars:
+  raw_dir_real: data/raw
+  raw_dir_fixtures: tests/fixtures/dbt/raw
+  raw_dir_fixtures_invalid: tests/fixtures/dbt/invalid
+  raw_dir_scratch: data/scratch/raw
+  # Raw file names, <source>_<YYYY-MM-DD>.<ext> in the top level only. The only
+  # definition: the sources read these files and freshness lists them.
+  epss_glob: "epss_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].csv.gz"
+  kev_glob: "kev_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].json"
+  manifest_glob: "manifest_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]Z.json"
+
+# One schema per layer: dbt names it <target schema>_<custom schema>, so main_staging.
+models:
+  threat_intel_pipeline:
+    staging:
+      +schema: staging

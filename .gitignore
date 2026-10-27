@@ -30,3 +30,4 @@ PLAN-SESIONES.md
 # dbt artifacts
 dbt/target/
 dbt/logs/
+dbt/.user.yml

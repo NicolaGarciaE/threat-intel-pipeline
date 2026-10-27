@@ -1,0 +1,70 @@
+sources:
+  - name: raw
+    description: >-
+      Raw files saved by the ingest command, read in place with DuckDB. Only
+      top-level files named <source>_<YYYY-MM-DD>.<ext> match (vars epss_glob
+      and kev_glob): never _probe/, .tmp/ or manifests. No matching file fails
+      the query.
+    config:
+      meta:
+        # dbt-duckdb formats external_location; "template" only substitutes
+        # $name, so DuckDB's {...} struct literals are left alone.
+        formatter: template
+      # Ages from macros/raw_files_loaded_at.sql: warn after more than 1 whole
+      # calendar day without a new file, error after more than 3.
+      freshness:
+        warn_after: {count: 1, period: day}
+        error_after: {count: 3, period: day}
+    tables:
+      - name: epss
+        description: FIRST EPSS daily CSV (gzip), every column read as text.
+        config:
+          loaded_at_query: "{{ raw_files_loaded_at('epss', 'csv.gz') }}"
+          meta:
+            external_location: >-
+              read_csv('{{ var("raw_dir_" ~ target.name) }}/{{ var("epss_glob") }}',
+              auto_detect=false, compression='gzip', skip=1, header=true,
+              delim=',', quote='"', escape='"', new_line='\n',
+              columns={'cve': 'VARCHAR', 'epss': 'VARCHAR', 'percentile': 'VARCHAR'},
+              strict_mode=true, ignore_errors=false, null_padding=false, filename=true)
+        columns:
+          # On the text: the cast to DECIMAL(6,5) in stg_epss would round the excess away.
+          - name: epss
+            data_tests:
+              - max_decimal_places:
+                  arguments:
+                    places: 5
+          - name: percentile
+            data_tests:
+              - max_decimal_places:
+                  arguments:
+                    places: 5
+
+      - name: kev
+        description: >-
+          CISA KEV daily JSON catalog, one row per file. maximum_object_size is
+          the download limit (MAX_BYTES in ingest/download.py).
+        config:
+          loaded_at_query: "{{ raw_files_loaded_at('kev', 'json') }}"
+          meta:
+            external_location: >-
+              read_json('{{ var("raw_dir_" ~ target.name) }}/{{ var("kev_glob") }}',
+              format='unstructured', records=true, auto_detect=false,
+              maximum_object_size=100000000, filename=true,
+              columns={'title': 'VARCHAR', 'catalogVersion': 'VARCHAR', 'dateReleased': 'VARCHAR',
+              'count': 'BIGINT', 'vulnerabilities': 'STRUCT("cveID" VARCHAR, "vendorProject" VARCHAR,
+              "product" VARCHAR, "vulnerabilityName" VARCHAR, "dateAdded" VARCHAR,
+              "shortDescription" VARCHAR, "requiredAction" VARCHAR, "dueDate" VARCHAR,
+              "knownRansomwareCampaignUse" VARCHAR, "forensicTriage" VARCHAR, "notes" VARCHAR,
+              "cwes" VARCHAR[])[]'})
+
+      - name: manifest
+        description: >-
+          Manifests of the ingest runs (var manifest_glob), read as text so that
+          one unreadable manifest does not break the others:
+          macros/manifest_entries.sql parses and classifies them.
+        config:
+          freshness: null
+          meta:
+            external_location: >-
+              read_text('{{ var("raw_dir_" ~ target.name) }}/{{ var("manifest_glob") }}')
