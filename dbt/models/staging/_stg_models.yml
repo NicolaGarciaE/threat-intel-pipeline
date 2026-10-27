@@ -1,0 +1,121 @@
+models:
+  - name: stg_kev
+    description: >-
+      CISA KEV catalog, one row per CVE and snapshot_date. Texts exactly as
+      published; dates converted only if their text has the exact format.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [cve_id, snapshot_date]
+    columns:
+      - name: snapshot_date
+        description: UTC date of the run that downloaded the raw file, from its name.
+        data_tests:
+          - not_null
+      - name: cve_id
+        description: cveID.
+        data_tests:
+          - not_null
+          - matches_regex:
+              arguments:
+                pattern: "CVE-[0-9]{4}-[0-9]{4,}"
+      # not_null on the 8 fields that CISA's schema makes mandatory: a JSON null
+      # passes the raw tests because the key exists.
+      - name: vendor_project
+        description: vendorProject, untrimmed.
+        data_tests:
+          - not_null
+      - name: product
+        description: product.
+        data_tests:
+          - not_null
+      - name: vulnerability_name
+        description: vulnerabilityName.
+        data_tests:
+          - not_null
+      - name: date_added
+        description: dateAdded, the date CISA added the CVE to the catalog.
+        data_tests:
+          - not_null
+      - name: short_description
+        description: shortDescription.
+        data_tests:
+          - not_null
+      - name: required_action
+        description: requiredAction.
+        data_tests:
+          - not_null
+      - name: due_date
+        description: dueDate.
+        data_tests:
+          - not_null
+      - name: known_ransomware_campaign_use
+        description: knownRansomwareCampaignUse.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["Known", "Unknown"]
+      - name: forensic_triage
+        description: forensicTriage.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["Yes", "No"]
+      - name: notes
+        description: notes.
+      - name: cwes
+        description: cwes, a list that can be empty.
+      - name: catalog_version
+        description: catalogVersion of the file.
+      - name: date_released
+        description: dateReleased of the file, in UTC.
+
+  - name: stg_epss
+    description: >-
+      FIRST EPSS scores, one row per CVE and snapshot_date. A view over the raw
+      files. The number formats and decimals are checked on the source text.
+    # Every test of stg_epss checks only the days from var test_since on (all
+    # days if unset), so DuckDB reads only those raw files. where cannot call
+    # macros: same var and default as macros/test_since.sql, which validates it.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [cve_id, snapshot_date]
+          config: &epss_test_since
+            where: "snapshot_date >= date '{{ var(\"test_since\", \"0001-01-01\") }}'"
+    columns:
+      - name: snapshot_date
+        description: UTC date of the run that downloaded the raw file, from its name.
+        data_tests:
+          - not_null:
+              config: *epss_test_since
+      - name: cve_id
+        description: cve.
+        data_tests:
+          - not_null:
+              config: *epss_test_since
+          - matches_regex:
+              arguments:
+                pattern: "CVE-[0-9]{4}-[0-9]{4,}"
+              config: *epss_test_since
+      # An empty CSV field arrives as NULL and strict_cast keeps it NULL.
+      - name: epss
+        description: Probability of exploitation activity in the next 30 days, exact.
+        data_tests:
+          - not_null:
+              config: *epss_test_since
+          - value_between:
+              arguments:
+                min_value: 0
+                max_value: 1
+              config: *epss_test_since
+      - name: percentile
+        description: Percentile as published by FIRST, exact.
+        data_tests:
+          - not_null:
+              config: *epss_test_since
+          - value_between:
+              arguments:
+                min_value: 0
+                max_value: 1
+              config: *epss_test_since

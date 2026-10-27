@@ -1,6 +1,9 @@
 # Test fixtures
 
-Everything in this directory is **synthetic**: made up on purpose for the tests,
+`dbt/` is the sample for dbt and has its own README: it holds real KEV records
+(CC0) in made-up daily files, and synthetic EPSS data and manifests.
+
+Everything in `raw/` is **synthetic**: made up on purpose for the raw tests,
 with the exact structure of each source's published files. None of it is real
 KEV or EPSS data, and it must never be presented as such. CVE identifiers use the
 year 2099 so they cannot be mistaken for real ones.

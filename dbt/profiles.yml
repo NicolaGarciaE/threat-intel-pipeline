@@ -1,0 +1,30 @@
+# Connection profile. DuckDB is a local file, so there are no credentials here.
+# Paths are relative to the repo root, where every dbt command runs; DuckDB
+# fails if data/warehouse/ does not exist (it never creates the folder).
+threat_intel_pipeline:
+  target: fixtures
+  outputs:
+    real:
+      type: duckdb
+      path: data/warehouse/real.duckdb
+      threads: 1
+      settings:
+        TimeZone: UTC
+    fixtures:
+      type: duckdb
+      path: data/warehouse/fixtures.duckdb
+      threads: 1
+      settings:
+        TimeZone: UTC
+    fixtures_invalid:
+      type: duckdb
+      path: data/warehouse/fixtures_invalid.duckdb
+      threads: 1
+      settings:
+        TimeZone: UTC
+    scratch:
+      type: duckdb
+      path: data/warehouse/scratch.duckdb
+      threads: 1
+      settings:
+        TimeZone: UTC
