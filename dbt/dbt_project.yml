@@ -19,9 +19,23 @@ vars:
   epss_glob: "epss_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].csv.gz"
   kev_glob: "kev_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].json"
   manifest_glob: "manifest_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]Z.json"
+  # Start date of the history (CLAUDE.md §5) of each target: the first snapshot_date
+  # with both core sources. No mart holds a day before it. scratch starts like the
+  # dbt sample, the usual base of manual tests.
+  start_date_real: "2026-10-26"
+  start_date_fixtures: "2026-09-20"
+  start_date_fixtures_invalid: "2026-10-20"
+  start_date_scratch: "2026-09-20"
+  # Question 2 (CLAUDE.md §6): a rise of epss in 7 days counts if it is at least
+  # this. Decided in session 3 with two months of data; revisable after some weeks.
+  # Changing it needs dbt build --full-refresh (the question 2 marts stop otherwise).
+  epss_rise_threshold: 0.1
 
-# One schema per layer: dbt names it <target schema>_<custom schema>, so main_staging.
+# One schema per layer: dbt names it <target schema>_<custom schema>, so main_staging
+# and main_marts.
 models:
   threat_intel_pipeline:
     staging:
       +schema: staging
+    marts:
+      +schema: marts
