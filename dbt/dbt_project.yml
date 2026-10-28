@@ -26,6 +26,10 @@ vars:
   start_date_fixtures: "2026-09-20"
   start_date_fixtures_invalid: "2026-10-20"
   start_date_scratch: "2026-09-20"
+  # Question 2 (CLAUDE.md §6): a rise of epss in 7 days counts if it is at least
+  # this. Decided in session 3 with two months of data; revisable after some weeks.
+  # Changing it needs dbt build --full-refresh (the question 2 marts stop otherwise).
+  epss_rise_threshold: 0.1
 
 # One schema per layer: dbt names it <target schema>_<custom schema>, so main_staging
 # and main_marts.

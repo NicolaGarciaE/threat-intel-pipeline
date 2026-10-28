@@ -42,9 +42,9 @@
       "url": null,
       "final_url": null,
       "downloaded_at": null,
-      "bytes": 223,
+      "bytes": 220,
       "rows": 12,
-      "sha256": "5e9b8b1015d917aeaf3bef66bc25fd8f095bef85a41950d803ae5e5ee5a18baf",
+      "sha256": "ccf09be10195d71d7088906c436fa764b8ae6e96d9e5518093e9a379aed78606",
       "model_version": "v2099.01.01",
       "score_date": "2026-09-20T12:03:22Z",
       "drop_check": {

@@ -79,6 +79,194 @@ models:
       - name: is_current
         description: True while the period is open (valid_to is null).
 
+  - name: mart_kev_additions
+    description: >-
+      Every CVE ever in the KEV history, also those that left the catalog: one
+      row with the dateAdded and the vendorProject of its first snapshot, the
+      vendor trimmed, and the ISO week of that dateAdded. The base of questions
+      1 and 3.
+    columns:
+      - name: cve_id
+        description: cveID.
+        data_tests:
+          - not_null
+          - unique
+      - name: first_seen
+        description: First snapshot_date of the CVE in the KEV history.
+        data_tests:
+          - not_null
+      - name: date_added
+        description: dateAdded in that first snapshot.
+        data_tests:
+          - not_null
+      - name: vendor_project
+        description: vendorProject in that first snapshot, as published.
+        data_tests:
+          - not_null
+      - name: vendor
+        description: vendor_project without leading and trailing spaces.
+        data_tests:
+          - not_null
+      - name: week_start
+        description: Monday of the ISO week of date_added.
+        data_tests:
+          - not_null
+      - name: is_kev_launch_week
+        description: True for the ISO week of the KEV launch, 2021-W44.
+      - name: in_kev
+        description: True if the CVE is in the last KEV snapshot.
+
+  - name: mart_epss_before_kev
+    description: >-
+      Question 1: the EPSS percentile of each CVE added to KEV on or after the
+      start date, 30 and 7 days before its dateAdded and on that day. Incremental.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [cve_id, days_before]
+    columns:
+      - name: cve_id
+        description: cveID.
+        data_tests:
+          - not_null
+      - name: date_added
+        description: dateAdded in the first snapshot of the CVE.
+      - name: first_seen
+        description: First snapshot_date of the CVE in the KEV history.
+      - name: days_before
+        description: 30, 7 or 0 days before date_added.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [30, 7, 0]
+                quote: false
+      - name: target_date
+        description: date_added minus days_before.
+        data_tests:
+          - not_null
+      - name: coverage_status
+        description: >-
+          scored (the CVE is in the EPSS file of target_date), not_scored (the
+          file exists, the CVE is not in it) or no_coverage (no EPSS file of that
+          date in the history).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["scored", "not_scored", "no_coverage"]
+      - name: percentile
+        description: The published EPSS percentile on target_date; null unless scored.
+
+  - name: mart_epss_risers_daily
+    description: >-
+      Question 2, one row per EPSS day d: whether d-7 has an EPSS file too, and
+      for those days the CVEs on both days, how many changed epss and how many
+      rose at least the threshold, in total and in KEV on d. Incremental.
+    columns:
+      - name: snapshot_date
+        description: The day d.
+        data_tests:
+          - not_null
+          - unique
+      - name: previous_date
+        description: d minus 7 days.
+        data_tests:
+          - not_null
+      - name: coverage_status
+        description: covered if d-7 has an EPSS file in the history, otherwise no_coverage.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["covered", "no_coverage"]
+      - name: threshold
+        description: var epss_rise_threshold when the day was computed.
+        data_tests:
+          - not_null
+      - name: cves_both_days
+        description: CVEs in the EPSS files of d and d-7 (the denominator); null if no_coverage.
+      - name: cves_changed
+        description: Of those, CVEs whose epss differs between d-7 and d; null if no_coverage.
+      - name: cves_risen
+        description: Of those, CVEs whose epss rose at least the threshold; null if no_coverage.
+      - name: cves_risen_in_kev
+        description: Of those, CVEs in the KEV history on d; null if no_coverage.
+
+  - name: mart_epss_risers
+    description: >-
+      Question 2: the CVEs whose epss rose at least the threshold between d-7 and
+      d, one row per day and CVE. Incremental.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [snapshot_date, cve_id]
+    columns:
+      - name: snapshot_date
+        description: The day d.
+        data_tests:
+          - not_null
+      - name: cve_id
+        description: cve.
+        data_tests:
+          - not_null
+      - name: previous_epss
+        description: epss on d-7, exact.
+      - name: epss
+        description: epss on d, exact.
+      - name: rise
+        description: epss minus previous_epss.
+        data_tests:
+          - not_null
+      - name: in_kev
+        description: True if a period of mart_kev_history covers d.
+      - name: threshold
+        description: var epss_rise_threshold when the day was computed.
+
+  - name: mart_kev_vendor_weekly
+    description: >-
+      Question 3: CVEs added to KEV per ISO week of their dateAdded and vendor
+      (trimmed), over every CVE ever in the KEV history. The launch week is
+      flagged, not removed.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [week_start, vendor]
+    columns:
+      - name: week_start
+        description: Monday of the ISO week.
+        data_tests:
+          - not_null
+      - name: vendor
+        description: vendorProject without leading and trailing spaces.
+        data_tests:
+          - not_null
+      - name: cves
+        description: CVEs of that week and vendor.
+        data_tests:
+          - not_null
+      - name: published_names
+        description: The vendorProject names behind the vendor, as published.
+      - name: is_kev_launch_week
+        description: True for the ISO week of the KEV launch, 2021-W44.
+
+  - name: mart_kev_vendor_trend
+    description: >-
+      Question 3 trend: per vendor, the CVEs added to KEV in the last 52 complete
+      ISO weeks before the week of the last KEV snapshot and in the 52 before
+      them, as counts over their window totals and as shares, with the
+      differences in CVEs and in share points.
+    columns:
+      - name: vendor
+        description: vendorProject without leading and trailing spaces.
+        data_tests:
+          - not_null
+          - unique
+      - name: share_previous_52
+        description: Null when the previous window has no CVEs.
+      - name: diff_share_points
+        description: 100 times the difference of the shares; null when a share is null.
+
   - name: mart_epss_history
     description: >-
       SCD type 2 history of EPSS: one row per cve_id and period in which its epss

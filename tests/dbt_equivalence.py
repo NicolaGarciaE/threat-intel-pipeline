@@ -95,10 +95,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nTemporary folder kept: {tmp}")
 
     print("\nTables of the marts schema against the reference (EXCEPT ALL both ways):")
-    print(f"  {'scenario':8} {'table':20} {'reference':>9} {'scenario':>9} {'missing':>8} {'extra':>8}")
+    print(f"  {'scenario':8} {'table':24} {'reference':>9} {'scenario':>9} {'missing':>8} {'extra':>8}")
     for name, rows in comparisons.items():
         for table, reference_rows, scenario_rows, missing, extra in rows:
-            print(f"  {name:8} {table:20} {reference_rows:>9} {scenario_rows:>9} {missing:>8} {extra:>8}")
+            print(f"  {name:8} {table:24} {reference_rows:>9} {scenario_rows:>9} {missing:>8} {extra:>8}")
             if missing or extra:
                 problems.append(f"{name}: {table} differs ({missing} rows missing, {extra} extra)")
     seconds = time.monotonic() - started

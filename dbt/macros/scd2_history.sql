@@ -20,7 +20,7 @@
 {% macro scd2_history(staging, source_name, watched_columns) -%}
 {%- set since = watermark("coalesce(valid_to, valid_from)") if is_incremental() else none -%}
 {%- if since is not none -%}
-{%- do check_days_match_source_days(staging, source_name, since) -%}
+{%- do check_days_match_source_days(staging, source_name, "snapshot_date > " ~ since) -%}
 {%- endif -%}
 {%- set row_values = watched_values(watched_columns) -%}
 
@@ -109,24 +109,26 @@ struct_pack({% for column in columns %}{{ column }} := {{ column }}{{ ", " if no
 {%- endmacro %}
 
 {#
-  Guard of the incremental histories: the days after the watermark (since) must
-  be exactly the days of this source in mart_source_days, each with the rows it
-  recorded. Otherwise the run stops before writing anything: a recorded day whose
-  raw file is missing or reads differently would close every open period, and a
-  day that mart_source_days has not accepted could be a late file.
+  Guard of the incremental marts that read staging: the days that match
+  days_filter (a condition on snapshot_date with date constants, such as the days
+  after a watermark) must be exactly the days of this source in mart_source_days,
+  each with the rows it recorded. Otherwise the run stops before writing anything:
+  a recorded day whose raw file is missing or reads differently would close every
+  open period of a history (or mark CVEs not_scored), and a day that
+  mart_source_days has not accepted could be a late file.
 #}
-{% macro check_days_match_source_days(staging, source_name, since) -%}
+{% macro check_days_match_source_days(staging, source_name, days_filter) -%}
 {%- set query -%}
 with recorded as (
     select snapshot_date, rows
     from {{ ref("mart_source_days") }}
-    where source = '{{ source_name }}' and snapshot_date > {{ since }}
+    where source = '{{ source_name }}' and {{ days_filter }}
 ),
 
 staged as (
     select snapshot_date, count(*) as rows
     from {{ staging }}
-    where snapshot_date > {{ since }}
+    where {{ days_filter }}
     group by snapshot_date
 )
 
@@ -146,7 +148,7 @@ order by 1
 {%- do details.append(row[0] ~ " (" ~ row[1] ~ " rows in mart_source_days, " ~ row[2] ~ " in staging)") -%}
 {%- endfor -%}
 {{ exceptions.raise_compiler_error(
-    this.identifier ~ ": the " ~ source_name ~ " days after " ~ since ~ " do not match mart_source_days: "
+    this.identifier ~ ": the " ~ source_name ~ " days where " ~ days_filter ~ " do not match mart_source_days: "
     ~ details | join(", ") ~ ". Restore the missing raw files or build mart_source_days first;"
     ~ " to recompute everything, run dbt build --full-refresh.") }}
 {%- endif -%}

@@ -11,10 +11,12 @@ A small sample to run `dbt build` without the network, in CI and locally
   file holds, the dates of the files, `count`, and `catalogVersion` and
   `dateReleased` (set to the date of the file). None of these files is a real
   KEV snapshot.
-- **Synthetic KEV record**: CVE-2099-0101 (`Synthetic Vendor`) is entirely made
-  up and is not CISA data. It is the only record whose fields change, so the KEV
-  history has changes to track. One of its versions has `notes` as a JSON null:
-  real KEV has no nulls, but the raw tests allow them.
+- **Synthetic KEV records**: CVE-2099-0101 and CVE-2099-0102 (`Synthetic
+  Vendor`) are entirely made up and are not CISA data. CVE-2099-0101 is the only
+  record whose fields change, so the KEV history has changes to track; one of its
+  versions has `notes` as a JSON null (real KEV has no nulls, but the raw tests
+  allow them). CVE-2099-0102 is added on the start date but first appears in a
+  later catalog, and its vendorProject has a trailing space.
 - **EPSS**: entirely synthetic, including the scores given to real CVE ids taken
   from KEV. They are not FIRST data and must never be presented as such.
   `model_version` is `v2099.01.01` as a marker, and CVEs that only exist in
@@ -29,14 +31,15 @@ A small sample to run `dbt build` without the network, in CI and locally
 | Label | CVE | dateAdded | Used for |
 |---|---|---|---|
 | A | CVE-2026-96656 | 2026-10-20 | EPSS at −30, −7 and 0 days; forensicTriage Yes |
-| B | CVE-2026-110447 | 2026-10-23 | no EPSS at −7 days; non-ASCII text in product and others |
-| C | CVE-2026-105133 | 2026-10-14 | dateAdded before its first snapshot; forensicTriage No |
+| B | CVE-2026-110447 | 2026-10-23 | not in EPSS on 09-20 and 09-23 (not scored yet at −30 days); no EPSS file at −7 days; non-ASCII text in product and others |
+| C | CVE-2026-105133 | 2026-10-14 | dateAdded before its first snapshot; forensicTriage No; epss rises exactly 0.1 from 10-20 to 10-27 |
 | D | CVE-2026-53362 | 2026-08-27 | disappears from KEV; empty cwes |
 | E1 | CVE-2021-41773 | 2021-11-03 | Known; U+FFFD (in CISA's own text) in shortDescription |
 | E2 | CVE-2026-59310 | 2026-08-18 | Known and Yes; disappears from KEV on 10-20 and returns on 10-23 |
 | E3 | CVE-2015-3246 | 2026-08-26 | Unknown and No; empty cwes |
 | E4 | CVE-2024-57728 | 2026-04-24 | Known; vendorProject `'SimpleHelp '` with a trailing space |
 | S | CVE-2099-0101 | 2026-09-01 | synthetic; the only KEV record that changes (versions below) |
+| S2 | CVE-2099-0102 | 2026-09-20 | synthetic; dateAdded on the start date, first in the catalog of 10-13; vendorProject `'Synthetic Vendor '` with a trailing space; in EPSS every day (`0.0015` / `0.3`) |
 
 Versions of S:
 
@@ -57,33 +60,58 @@ Synthetic EPSS-only CVEs:
 | CVE-2099-0004 | from 2026-10-13 | `0.04` / `0.5` | appears in EPSS |
 | CVE-2099-0005 | all but 10-13 and 10-14 | `0.0007` / `0.15` | disappears from EPSS and returns with the same epss |
 
-Every EPSS file has 12 rows: each CVE that leaves is replaced on the same day,
-because the manifests apply the 1% drop check of the ingest.
+EPSS files have 12 rows on 09-20 and 09-23 and 13 afterwards: no day has fewer
+rows than the day before, because the manifests apply the 1% drop check of the
+ingest (each CVE that leaves is replaced on the same day).
 
 ## Calendar (`raw/`)
 
 | snapshot_date | KEV | EPSS | Cases |
 |---|---|---|---|
-| 2026-09-20 | E1 E2 E3 E4 D S | 12 rows | start date; −30 days of A |
-| 2026-09-23 | missing | 12 rows | KEV missing; −30 days of B |
-| 2026-10-13 | E1 E2 E3 E4 D S | 12 rows (0004 appears, 0005 absent) | −7 days of A |
-| 2026-10-14 | missing | 12 rows (last day of 0003) | KEV missing; dateAdded of C |
-| 2026-10-16 | E1 E2 E3 E4 D S (C left out on purpose) | missing | EPSS missing, so B has no EPSS at −7 days; S v2 |
-| 2026-10-20 | E1 E3 E4 D A C S (E2 left out) | 12 rows (0005 returns) | dateAdded of A; first snapshot of A and of C; E2 disappears; two manifests (EPSS late) |
-| 2026-10-23 | E1 E2 E3 E4 A B C S (D removed) | 12 rows | dateAdded of B; D disappears; E2 returns; S v3; two manifests (KEV late) |
-| 2026-10-24 | same as 10-23 | 12 rows, same epss as 10-23 | a day without any change in either source |
-| 2026-10-27 | same records; S v4 | 12 rows (A changes) | the first change after a day without changes |
+| 2026-09-20 | E1 E2 E3 E4 D S | 12 rows (B absent) | start date; −30 days of A; dateAdded of S2 |
+| 2026-09-23 | missing | 12 rows (B absent) | KEV missing; −30 days of B (not scored) |
+| 2026-10-13 | E1 E2 E3 E4 D S S2 | 13 rows (B and 0004 appear, 0005 absent) | −7 days of A; first snapshot of S2 |
+| 2026-10-14 | missing | 13 rows (last day of 0003) | KEV missing; dateAdded of C |
+| 2026-10-16 | E1 E2 E3 E4 D S S2 (C left out on purpose) | missing | EPSS missing, so B has no EPSS at −7 days; S v2 |
+| 2026-10-20 | E1 E3 E4 D A C S S2 (E2 left out) | 13 rows (0005 returns) | dateAdded of A; first snapshot of A and of C; E2 disappears; two manifests (EPSS late) |
+| 2026-10-23 | E1 E2 E3 E4 A B C S S2 (D removed) | 13 rows | dateAdded of B; D disappears; E2 returns; S v3; two manifests (KEV late) |
+| 2026-10-24 | same as 10-23 | 13 rows, same epss as 10-23 | a day without any change in either source |
+| 2026-10-27 | same records; S v4 | 13 rows (A and C change) | the first change after a day without changes |
 
-Expected rows: 49 in `stg_kev` and 96 in `stg_epss`. Every other day between
+Expected rows: 55 in `stg_kev` and 102 in `stg_epss`. Every other day between
 2026-09-20 and 2026-10-27 has no file of either source.
 
-Question 1 (start date 2026-09-20; CVEs added after it: A, B and C):
+Question 1 (start date 2026-09-20; CVEs with dateAdded on or after it: A, B, C
+and S2). The status of a day is `scored` (the CVE is in the EPSS file of that
+day), `not_scored` (the file exists, the CVE is not in it) or `no_coverage` (no
+EPSS file of that day in the history):
 
-| CVE | −30 days | −7 days | 0 days |
+| CVE | dateAdded / first snapshot | −30 days | −7 days | 0 days |
+|---|---|---|---|---|
+| A | 10-20 / 10-20 | 2026-09-20: scored, 0.61 | 2026-10-13: scored, 0.83 | 2026-10-20: scored, 0.97 |
+| B | 10-23 / 10-23 | 2026-09-23: not_scored | 2026-10-16: no_coverage | 2026-10-23: scored, 0.95 |
+| C | 10-14 / 10-20 | 2026-09-14: no_coverage | 2026-10-07: no_coverage | 2026-10-14: scored, 0.4 |
+| S2 | 09-20 / 10-13 | 2026-08-21: no_coverage | 2026-09-13: no_coverage | 2026-09-20: scored, 0.3 |
+
+Question 2 (T = 0.1; rise = epss(d) − epss(d−7) for the CVEs on both days): only
+10-20 and 10-27 have an EPSS file seven days before; the other six EPSS days are
+`no_coverage`.
+
+| d | CVEs on both days | epss changed | rose at least 0.1 (in KEV on d) |
 |---|---|---|---|
-| A | 2026-09-20: percentile 0.61 | 2026-10-13: 0.83 | 2026-10-20: 0.97 |
-| B | 2026-09-23: 0.32 | 2026-10-16: no coverage | 2026-10-23: 0.95 |
-| C | 2026-09-14: no coverage | 2026-10-07: no coverage | 2026-10-14: 0.4 |
+| 2026-10-20 | 12 | 3 (A, B, C) | 1: A +0.2648 (in KEV from 10-20) |
+| 2026-10-27 | 13 | 3 (A, B, C) | 2: B +0.11 and C +0.1, exactly the threshold (both in KEV) |
+
+Question 3 (every CVE ever in the KEV history, by ISO week of its dateAdded and
+trimmed vendorProject): Apache 1 in 2021-W44 (the KEV launch week, flagged and
+left out of the trend); SimpleHelp 1 in 2026-W17 (published `'SimpleHelp '`);
+Broadcom 1 in 2026-W34; Red Hat 1 and Linux 1 (D, removed later) in 2026-W35;
+Synthetic Vendor 1 in 2026-W36 and 1 in 2026-W38 (published `'Synthetic Vendor'`
+and `'Synthetic Vendor '`); Ahsay 1 in 2026-W42; Plex 1 and Collabora 1 in
+2026-W43. Trend, last 52 complete ISO weeks before the week of the last KEV
+snapshot (2025-10-27 to 2026-10-25): 9 CVEs, Synthetic Vendor 2 / 9 and the
+other seven vendors 1 / 9 each; the previous 52 weeks have 0 CVEs, so their
+shares are null.
 
 Manifests: one per run. A source without its file that day is `failed`, as the
 real ingest would write it. Two days have a same-day retry, and the latest
@@ -96,7 +124,7 @@ manifest of the day is the one that counts:
 
 ## Expected history (session 3)
 
-KEV history (`cve_id`, all record fields but `cveID` watched): 13 rows, 8 current.
+KEV history (`cve_id`, all record fields but `cveID` watched): 14 rows, 9 current.
 
 | CVE | valid_from | valid_to | Why |
 |---|---|---|---|
@@ -111,14 +139,16 @@ KEV history (`cve_id`, all record fields but `cveID` watched): 13 rows, 8 curren
 | S | 2026-10-16 | 2026-10-23 | v2 |
 | S | 2026-10-23 | 2026-10-27 | v3 |
 | S | 2026-10-27 | null | v4 |
+| S2 | 2026-10-13 | null | first snapshot, after its dateAdded |
 
-EPSS history (`cve_id`, `epss` watched as an exact decimal): 22 rows, 12 current.
+EPSS history (`cve_id`, `epss` watched as an exact decimal): 23 rows, 13 current.
 
 | CVE | Periods (valid_from → valid_to: epss) |
 |---|---|
 | A | 09-20 → 10-13: 0.0121; 10-13 → 10-20: 0.0457; 10-20 → 10-27: 0.3105; 10-27 → null: 0.4 |
-| B | 09-20 → 09-23: 0.002; 09-23 → 10-20: 0.0021; 10-20 → 10-23: 0.09; 10-23 → null: 0.2 |
-| C | 09-20 → 10-13: 0.0008; 10-13 → 10-14: 0.0011; 10-14 → null: 0.003 |
+| B | 10-13 → 10-20: 0.0021; 10-20 → 10-23: 0.09; 10-23 → null: 0.2 |
+| C | 09-20 → 10-13: 0.0008; 10-13 → 10-14: 0.0011; 10-14 → 10-27: 0.003; 10-27 → null: 0.103 |
+| S2 | 09-20 → null: 0.0015 |
 | D, E1, E2, E3, E4, 0001 | 09-20 → null |
 | 0002 | 09-20 → null: one period, although the text alternates `3e-05` and `0.00003` |
 | 0003 | 09-20 → 10-20: 0.00012 (disappears) |
@@ -138,13 +168,12 @@ Its manifest is ok: the raw tests do not check decimals.
 
 - FAIL, 1 row each: `source_max_decimal_places_raw_epss_epss__5` and
   `source_max_decimal_places_raw_epss_percentile__5`;
-- SKIP, 40: `stg_epss`, its 8 tests, and the 2 tests that compare staging with
+- SKIP, 84: `stg_epss`, its 8 tests, and the 2 tests that compare staging with
   the manifests (`assert_staging_rows_match_manifests` and
-  `assert_manifest_bookkeeping`), because they depend on `stg_epss`; the 4
-  marts, because `mart_source_days` reads `stg_epss` and `mart_kev_history`,
-  `mart_epss_history` and `mart_source_gaps` depend on it (so the KEV history
-  is not updated either); their 24 tests; and
-  `assert_start_date_is_first_complete_day`;
+  `assert_manifest_bookkeeping`), because they depend on `stg_epss`; the 10
+  marts, because `mart_source_days` reads `stg_epss` and every other mart
+  depends on it (so the KEV history is not updated either); and the 63 tests
+  on the marts;
 - PASS, 14: `stg_kev` and its 13 tests.
 
 ## Regenerate
