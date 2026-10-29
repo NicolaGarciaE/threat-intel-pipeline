@@ -28,7 +28,13 @@ from pathlib import Path
 from threat_intel_pipeline.fileio import TMP_DIR_NAME, write_new_file
 from threat_intel_pipeline.ingest import epss, kev
 from threat_intel_pipeline.ingest.common import RawValidationError, SourceResult
-from threat_intel_pipeline.manifest import build_manifest, find_reference, latest_of_day, load_manifests, write_manifest
+from threat_intel_pipeline.manifest import (
+    build_manifest,
+    find_reference,
+    latest_of_day,
+    load_manifests,
+    write_manifest,
+)
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[2]

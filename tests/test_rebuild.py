@@ -142,8 +142,10 @@ def test_a_kev_file_that_differs_from_its_manifest_is_not_written(tmp_path):
     report = rebuild.sync_releases(rebuild.FolderFiles(source), raw, TODAY)
 
     assert report.errors == [
-        f"kev_2026-10-13.json: sha256 {sha256(b'tampered')}, but manifest_2026-10-13_151705Z.json records "
-        f"{sha256((SAMPLE / 'kev_2026-10-13.json').read_bytes())}; not written"
+        (
+            f"kev_2026-10-13.json: sha256 {sha256(b'tampered')}, but manifest_2026-10-13_151705Z.json records "
+            f"{sha256((SAMPLE / 'kev_2026-10-13.json').read_bytes())}; not written"
+        )
     ]
     assert not (raw / "kev_2026-10-13.json").exists()
 
@@ -154,8 +156,10 @@ def test_a_day_missing_from_the_archive_is_an_error_and_the_other_days_are_writt
     raw, _, epss = rebuild_from_folders(tmp_path, archive)
 
     assert epss.errors == [
-        f"epss_2026-10-13.csv.gz: {archive.as_posix()}/epss_scores-2026-10-13.csv.gz could not be read: "
-        f"epss_scores-2026-10-13.csv.gz is not in {archive.as_posix()}"
+        (
+            f"epss_2026-10-13.csv.gz: {archive.as_posix()}/epss_scores-2026-10-13.csv.gz could not be read: "
+            f"epss_scores-2026-10-13.csv.gz is not in {archive.as_posix()}"
+        )
     ]
     assert len(epss.written) == 7
     assert not (raw / "epss_2026-10-13.csv.gz").exists()
@@ -173,9 +177,11 @@ def test_an_archive_file_with_another_sha256_is_never_accepted(tmp_path):
 
     recorded = (SAMPLE / "epss_2026-10-13.csv.gz").read_bytes()
     assert epss.errors == [
-        f"epss_2026-10-13.csv.gz: {archive.as_posix()}/epss_scores-2026-10-13.csv.gz has sha256 {sha256(other)} "
-        f"({len(other):,} bytes), but manifest_2026-10-13_151705Z.json records {sha256(recorded)} "
-        f"({len(recorded):,} bytes); not written"
+        (
+            f"epss_2026-10-13.csv.gz: {archive.as_posix()}/epss_scores-2026-10-13.csv.gz has sha256 {sha256(other)} "
+            f"({len(other):,} bytes), but manifest_2026-10-13_151705Z.json records {sha256(recorded)} "
+            f"({len(recorded):,} bytes); not written"
+        )
     ]
     assert not (raw / "epss_2026-10-13.csv.gz").exists()
 
@@ -231,8 +237,10 @@ def test_the_official_archive_url_and_a_missing_file(tmp_path):
     assert requested == [f"{base}/epss_scores-2026-10-27.csv.gz", f"{base}/epss_scores-2026-10-28.csv.gz"]
     assert report.written == [f"epss_2026-10-28.csv.gz <- {base}/epss_scores-2026-10-28.csv.gz"]
     assert report.errors == [
-        f"epss_2026-10-27.csv.gz: {base}/epss_scores-2026-10-27.csv.gz could not be read: "
-        f"GET {base}/epss_scores-2026-10-27.csv.gz failed: HTTP 404"
+        (
+            f"epss_2026-10-27.csv.gz: {base}/epss_scores-2026-10-27.csv.gz could not be read: "
+            f"GET {base}/epss_scores-2026-10-27.csv.gz failed: HTTP 404"
+        )
     ]
 
 
@@ -251,16 +259,22 @@ def test_verify_finds_missing_and_changed_files_and_warns_about_the_rest(tmp_pat
 
     assert report.errors == [
         f"epss_2026-09-23.csv.gz: manifest_2026-09-23_151705Z.json records it ok, but it is not in {raw.as_posix()}",
-        f"kev_2026-10-20.json: sha256 {sha256(b'changed')} (7 bytes), but manifest_2026-10-20_163005Z.json records "
-        f"{sha256((SAMPLE / 'kev_2026-10-20.json').read_bytes())}",
-        f"kev_2026-10-27.json: sha256 {sha256((SAMPLE / 'kev_2026-10-27.json').read_bytes())} "
-        f"({(SAMPLE / 'kev_2026-10-27.json').stat().st_size:,} bytes), but {later.name} records {sha256(b'another catalog')}",
+        (
+            f"kev_2026-10-20.json: sha256 {sha256(b'changed')} (7 bytes), but manifest_2026-10-20_163005Z.json records "
+            f"{sha256((SAMPLE / 'kev_2026-10-20.json').read_bytes())}"
+        ),
+        (
+            f"kev_2026-10-27.json: sha256 {sha256((SAMPLE / 'kev_2026-10-27.json').read_bytes())} "
+            f"({(SAMPLE / 'kev_2026-10-27.json').stat().st_size:,} bytes), but {later.name} records {sha256(b'another catalog')}"
+        ),
     ]
     assert report.warnings == [
         "kev_2026-10-14.json: no readable manifest of its day records it ok",
-        f"kev 2026-10-27: ok manifests record 2 different sha256 values "
-        f"({', '.join(sorted([sha256(b'another catalog'), sha256((SAMPLE / 'kev_2026-10-27.json').read_bytes())]))}); "
-        "the latest manifest decides",
+        (
+            f"kev 2026-10-27: ok manifests record 2 different sha256 values "
+            f"({', '.join(sorted([sha256(b'another catalog'), sha256((SAMPLE / 'kev_2026-10-27.json').read_bytes())]))}); "
+            "the latest manifest decides"
+        ),
     ]
 
 

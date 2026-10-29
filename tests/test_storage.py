@@ -146,8 +146,10 @@ def test_a_different_published_file_is_a_conflict_and_is_never_replaced(gh, tmp_
     local = (raw / "kev_2026-10-26.json").read_bytes()
     assert gh.published("data-2026-10")["kev_2026-10-26.json"] == b"other content"
     assert report.conflicts == [
-        f"data-2026-10/kev_2026-10-26.json: published 13 bytes with sha256 {sha256(b'other content')}, "
-        f"local {len(local)} bytes with sha256 {sha256(local)}; nothing was replaced"
+        (
+            f"data-2026-10/kev_2026-10-26.json: published 13 bytes with sha256 {sha256(b'other content')}, "
+            f"local {len(local)} bytes with sha256 {sha256(local)}; nothing was replaced"
+        )
     ]
     assert report.uploaded == []
     assert report.withheld == [
@@ -240,8 +242,10 @@ def test_in_actions_a_kev_file_not_published_is_also_a_warning_annotation(gh, tm
     assert storage.main(args, runner=gh, environ=in_actions) == 0
     annotations = [line for line in capsys.readouterr().out.splitlines() if line.startswith("::")]
     assert annotations == [
-        f"::warning title=KEV file not published::kev_2026-10-26.json: no manifest in {raw} records it ok "
-        f"with sha256 {sha256((raw / 'kev_2026-10-26.json').read_bytes())}"
+        (
+            f"::warning title=KEV file not published::kev_2026-10-26.json: no manifest in {raw} records it ok "
+            f"with sha256 {sha256((raw / 'kev_2026-10-26.json').read_bytes())}"
+        )
     ]
 
 

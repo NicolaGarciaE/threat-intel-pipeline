@@ -319,8 +319,10 @@ def _print_summary(
 
     out = [
         "",
-        f"==== Summary: snapshot_date {snapshot_date.isoformat()}, "
-        f"run_started_at {manifest.format_timestamp(started_at)} ====",
+        (
+            f"==== Summary: snapshot_date {snapshot_date.isoformat()}, "
+            f"run_started_at {manifest.format_timestamp(started_at)} ===="
+        ),
         line(header),
         *(line(row) for row in rows),
     ]

@@ -4,12 +4,18 @@ import http.client
 import io
 import logging
 import urllib.error
+from typing import Self
 
 import pytest
 from helpers import NetworkAccessBlocked
 
 from threat_intel_pipeline.ingest import download
-from threat_intel_pipeline.ingest.download import USER_AGENT, DownloadError, fetch, redact
+from threat_intel_pipeline.ingest.download import (
+    USER_AGENT,
+    DownloadError,
+    fetch,
+    redact,
+)
 
 URL = "https://example.test/file.json"
 CANARY = "CANARY-HEADER-VALUE-7f3a"
@@ -37,7 +43,7 @@ class FakeResponse:
     def read(self, size: int) -> bytes:
         return self._body.read(size)
 
-    def __enter__(self) -> "FakeResponse":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc_info: object) -> None:
@@ -91,7 +97,7 @@ def test_first_attempt_ok_sends_user_agent_and_explicit_timeout():
 
 
 def test_5xx_is_retried_with_growing_waits():
-    result, opener, sleeps = run_fetch([http_error(503), http_error(503), FakeResponse(b"ok")])
+    result, _opener, sleeps = run_fetch([http_error(503), http_error(503), FakeResponse(b"ok")])
     assert result.attempts == 3
     assert sleeps == [10, 30]
 
@@ -111,7 +117,7 @@ def test_gives_up_after_4_network_errors():
 
 
 def test_socket_timeout_is_retried():
-    result, opener, sleeps = run_fetch([TimeoutError("timed out"), FakeResponse(b"x")])
+    result, _opener, sleeps = run_fetch([TimeoutError("timed out"), FakeResponse(b"x")])
     assert result.attempts == 2
     assert sleeps == [10]
 

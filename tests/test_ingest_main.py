@@ -12,7 +12,17 @@ import shutil
 import sys
 
 import pytest
-from helpers import EPSS_ROWS, big_kev, epss_gz, epss_text, fetch_result, gz, kev_bytes, kev_catalog, utc
+from helpers import (
+    EPSS_ROWS,
+    big_kev,
+    epss_gz,
+    epss_text,
+    fetch_result,
+    gz,
+    kev_bytes,
+    kev_catalog,
+    utc,
+)
 
 from threat_intel_pipeline import manifest
 from threat_intel_pipeline.ingest import __main__ as cli

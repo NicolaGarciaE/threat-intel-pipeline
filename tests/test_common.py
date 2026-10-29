@@ -4,7 +4,15 @@ import hashlib
 from datetime import date, datetime
 
 import pytest
-from helpers import SNAPSHOT, big_kev, fetch_result, fixture_bytes, kev_bytes, kev_catalog, utc
+from helpers import (
+    SNAPSHOT,
+    big_kev,
+    fetch_result,
+    fixture_bytes,
+    kev_bytes,
+    kev_catalog,
+    utc,
+)
 
 from threat_intel_pipeline.ingest import common, kev
 from threat_intel_pipeline.ingest.common import (
@@ -76,7 +84,7 @@ def test_excerpt_cuts_long_lines_to_200_characters():
 
 
 def test_excerpt_escapes_invalid_utf8_and_invisible_characters():
-    content = '{\n  "title": "café ​"'.encode() + b"\xff\nthird line"
+    content = '{\n  "title": "café \u200b"'.encode() + b"\xff\nthird line"
     assert diagnostic_excerpt(content) == ["{", '  "title": "café \\u200b"\\xff']
 
 

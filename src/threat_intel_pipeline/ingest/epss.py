@@ -9,12 +9,12 @@ import zlib
 from datetime import date, datetime, timedelta
 
 from threat_intel_pipeline.ingest.common import (
+    EXCERPT_REDACTED,
+    EXCERPT_SCAN_BYTES,
     MAX_DROP_PERCENT,
     RawValidationError,
     Reference,
     SourceSpec,
-    EXCERPT_REDACTED,
-    EXCERPT_SCAN_BYTES,
     Validated,
     check_row_count,
     diagnostic_excerpt,

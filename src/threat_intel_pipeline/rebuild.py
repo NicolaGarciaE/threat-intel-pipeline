@@ -38,7 +38,14 @@ from threat_intel_pipeline import storage
 from threat_intel_pipeline.fileio import write_new_file
 from threat_intel_pipeline.ingest.download import DownloadError, FetchResult, fetch
 from threat_intel_pipeline.manifest import ManifestIndex, load_manifests
-from threat_intel_pipeline.storage import KEV_NAME, MANIFEST_NAME, GitHub, StorageError, file_sha256, sha256_of
+from threat_intel_pipeline.storage import (
+    KEV_NAME,
+    MANIFEST_NAME,
+    GitHub,
+    StorageError,
+    file_sha256,
+    sha256_of,
+)
 
 log = logging.getLogger("threat_intel_pipeline.rebuild")
 
