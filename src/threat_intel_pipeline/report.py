@@ -5,14 +5,22 @@ visible somewhere else: each one becomes a ::warning:: annotation, shown on the
 page of the run, and the job summary lists every node that did not pass.
 
 dbt: the results of the last dbt command (run_results.json) by status, and every
-node that did not pass with its failing rows and dbt's message. Nothing here
-prints data values: only node names, statuses, counts and messages.
+node that did not pass with its failing rows and dbt's message.
 
+ingest: the manifest written by the run, its warnings as ::warning:: annotations,
+and two rules that are errors only in Actions (session 4): a source whose 1% drop
+check was skipped (no reference manifest), and a source recorded ok with two
+different sha256 values on the same snapshot_date. The ingest command keeps them
+as warnings (CLAUDE.md §4) and its files are already saved; the report turns the
+job red so that they are looked at that same day.
+
+Nothing here prints data values: only names, statuses, counts and messages.
 Written to $GITHUB_STEP_SUMMARY (Markdown) when it is set, and always to stdout;
 annotations only inside GitHub Actions (GITHUB_ACTIONS=true).
 
 Run from the repo root:
   uv run python -m threat_intel_pipeline.report dbt --run-results dbt/target/run_results.json
+  uv run python -m threat_intel_pipeline.report ingest --raw-dir data/raw [--new-manifest NAME]
 """
 
 from __future__ import annotations
@@ -23,16 +31,19 @@ import json
 import os
 import sys
 from collections.abc import Mapping, Sequence
+from datetime import date
 from pathlib import Path
 from typing import Any
 
+from threat_intel_pipeline.manifest import load_manifests
 from threat_intel_pipeline.storage import annotation
 
 MESSAGE_CHARS = 300
 STATUS_ORDER = ("success", "pass", "warn", "fail", "error", "skipped")
+SOURCES = ("kev", "epss")
 
 EXIT_OK = 0
-EXIT_FAILED = 1  # the report could not be made
+EXIT_FAILED = 1  # the report could not be made, or an Actions rule failed
 
 
 def node_name(unique_id: str) -> str:
@@ -82,25 +93,85 @@ def dbt_report(run_results: Mapping[str, Any]) -> tuple[list[str], list[str]]:
     return lines, annotations
 
 
+def ingest_report(raw_dir: Path, new_manifest: str | None) -> tuple[list[str], list[str], list[str]]:
+    """Markdown lines, annotations and errors of the Actions rules, for the manifest written by the run."""
+    if not new_manifest:
+        lines = [
+            "### Ingest: no manifest written by this run",
+            "",
+            (
+                "Nothing to do (every source already on disk and ok in the day's latest manifest), "
+                "or the ingest stopped before writing it: see its log."
+            ),
+        ]
+        return lines, [], []
+    data = json.loads((raw_dir / new_manifest).read_text(encoding="ascii"))
+    lines = [
+        f"### Ingest: {new_manifest} (status {data['status']})",
+        "",
+        "| source | status | action | rows | bytes | 1% drop check | error |",
+        "|---|---|---|---:|---:|---|---|",
+    ]
+    errors = []
+    for source, entry in data["sources"].items():
+        drop = entry.get("drop_check") or {}
+        cells = [
+            source, entry["status"], entry.get("action") or "-", _number(entry.get("rows")), _number(entry.get("bytes")),
+            short(drop.get("summary")) or "-", short(entry.get("error")) or "-",
+        ]
+        lines.append("| " + " | ".join(cell.replace("|", "\\|") for cell in cells) + " |")
+        if drop.get("status") == "skipped":
+            errors.append(f"{source}: the 1% drop check was skipped ({drop.get('reason')}); in Actions every source needs a reference manifest")
+    day = date.fromisoformat(data["snapshot_date"])
+    index = load_manifests(raw_dir, day, SOURCES)
+    for source in SOURCES:
+        recorded: dict[str, str] = {}
+        for manifest in index.readable:
+            entry = manifest.entry(source)
+            if manifest.snapshot_date == day and entry["status"] == "ok":
+                recorded.setdefault(entry["sha256"], manifest.name)
+        if len(recorded) > 1:
+            found = ", ".join(f"{sha256} in {name}" for sha256, name in sorted(recorded.items()))
+            errors.append(f"{source}: the ok manifests of {day.isoformat()} record different sha256 values ({found})")
+    warnings = [str(warning) for warning in data.get("warnings") or []]
+    lines += ["", f"Warnings of the manifest ({len(warnings)}):" if warnings else "Warnings of the manifest: none"]
+    lines += [f"- {short(warning)}" for warning in warnings]
+    lines += ["", f"Actions rules: {len(errors)} errors" if errors else "Actions rules: ok"]
+    lines += [f"- {error}" for error in errors]
+    annotations = [annotation("warning", "ingest warning", short(warning)) for warning in warnings]
+    annotations += [annotation("error", "ingest rule", error) for error in errors]
+    return lines, annotations, errors
+
+
+def _number(value: Any) -> str:
+    return f"{value:,}" if type(value) is int else "-"
+
+
 def main(argv: Sequence[str] | None = None, *, environ: Mapping[str, str] = os.environ) -> int:
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
             reconfigure(errors="backslashreplace")
     args = _parse_args(argv)
+    errors: list[str] = []
     try:
-        document = json.loads(args.run_results.read_text(encoding="utf-8"))
-        lines, annotations = dbt_report(document)
+        if args.command == "dbt":
+            lines, annotations = dbt_report(json.loads(args.run_results.read_text(encoding="utf-8")))
+        else:
+            lines, annotations, errors = ingest_report(args.raw_dir, args.new_manifest)
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        print(f"Result: FAILED, exit code {EXIT_FAILED} (cannot read {args.run_results.as_posix()}: {exc})", flush=True)
+        print(f"Result: FAILED, exit code {EXIT_FAILED} (cannot make the {args.command} report: {exc})", flush=True)
         return EXIT_FAILED
     print("\n".join(lines), flush=True)
-    if environ.get("GITHUB_ACTIONS") == "true":
+    if environ.get("GITHUB_ACTIONS") == "true" and annotations:
         print("\n".join(annotations), flush=True)
     summary = environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a", encoding="utf-8") as file:
             file.write("\n".join(lines) + "\n\n")
+    if errors:
+        print(f"Result: FAILED, exit code {EXIT_FAILED} ({len(errors)} Actions rule errors)", flush=True)
+        return EXIT_FAILED
     return EXIT_OK
 
 
@@ -112,6 +183,9 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     commands = parser.add_subparsers(dest="command", required=True)
     dbt = commands.add_parser("dbt", help="statuses of the last dbt command and every node that did not pass")
     dbt.add_argument("--run-results", required=True, type=Path, help="dbt's run_results.json")
+    ingest = commands.add_parser("ingest", help="the manifest written by the run and the Actions rules")
+    ingest.add_argument("--raw-dir", required=True, type=Path, help="the raw folder, for example data/raw")
+    ingest.add_argument("--new-manifest", default="", help="file name of the manifest written by the run, if any")
     return parser.parse_args(argv)
 
 

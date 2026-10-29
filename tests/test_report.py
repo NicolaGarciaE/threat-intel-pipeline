@@ -1,8 +1,12 @@
-"""Job summaries of a run, from synthetic dbt results. No network."""
+"""Job summaries of a run, from synthetic dbt results and manifests. No network."""
 
 import json
+from datetime import date
 
-from threat_intel_pipeline import report
+from helpers import sha256, utc
+
+from threat_intel_pipeline import manifest, report
+from threat_intel_pipeline.ingest.common import DropCheck, SourceResult
 
 RUN_RESULTS = {
     "args": {"which": "build", "target": "real"},
@@ -71,7 +75,80 @@ def test_long_messages_are_cut_and_pipes_escaped(tmp_path, capsys):
 
 def test_a_missing_or_broken_file_fails(tmp_path, capsys):
     assert report.main(["dbt", "--run-results", str(tmp_path / "missing.json")], environ={}) == 1
-    assert "Result: FAILED, exit code 1 (cannot read" in capsys.readouterr().out
+    assert "Result: FAILED, exit code 1 (cannot make the dbt report:" in capsys.readouterr().out
     broken = tmp_path / "broken.json"
     broken.write_text("{", encoding="utf-8")
     assert report.main(["dbt", "--run-results", str(broken)], environ={}) == 1
+
+
+# --- ingest ---
+
+DAY = date(2026, 10, 29)
+
+
+def write_manifest(raw, hour, *, kev=b"kev", epss=b"epss", drop="ok", warnings=()):
+    """A manifest of DAY written with the functions of session 1; a None source failed."""
+    results = []
+    for name, extension, content in (("kev", "json", kev), ("epss", "csv.gz", epss)):
+        check = DropCheck(
+            status=drop, rows=1, max_drop_percent=1,
+            reference_snapshot_date=None if drop == "skipped" else date(2026, 10, 28),
+            reference_rows=None if drop == "skipped" else 1,
+            reason="no previous ok manifest" if drop == "skipped" else None,
+        )
+        results.append(SourceResult(
+            source=name, status="ok" if content is not None else "failed", file=f"{name}_{DAY}.{extension}",
+            url=f"https://example.invalid/{name}", action="downloaded" if content is not None else None,
+            bytes=len(content) if content is not None else None, rows=1 if content is not None else None,
+            sha256=sha256(content) if content is not None else None, metadata={},
+            drop_check=check if content is not None else None,
+            error=None if content is not None else "DownloadError: GET https://example.invalid/epss failed",
+        ))
+    document = manifest.build_manifest(DAY, utc(29, hour, 17, 3), results, list(warnings))
+    return manifest.write_manifest(raw, document).name
+
+
+def ingest(raw, name, environ=None):
+    return report.main(["ingest", "--raw-dir", str(raw), "--new-manifest", name], environ=environ or {})
+
+
+def test_ingest_report_without_a_new_manifest(tmp_path, capsys):
+    assert ingest(tmp_path, "") == 0
+    assert "### Ingest: no manifest written by this run" in capsys.readouterr().out
+
+
+def test_ingest_report_lists_the_sources_and_annotates_the_warnings(tmp_path, capsys):
+    name = write_manifest(tmp_path, 15, epss=None, warnings=["orphan temporary file left by an interrupted write: x"])
+
+    assert ingest(tmp_path, name, {"GITHUB_ACTIONS": "true"}) == 0
+
+    out = capsys.readouterr().out
+    assert f"### Ingest: {name} (status failed)" in out
+    assert "| kev | ok | downloaded | 1 | 3 | no drop: 1 rows vs 1 on 2026-10-28 (+0) | - |" in out
+    assert "| epss | failed | - | - | - | - | DownloadError: GET https://example.invalid/epss failed |" in out
+    assert "Actions rules: ok" in out
+    assert "::warning title=ingest warning::orphan temporary file left by an interrupted write: x" in out
+
+
+def test_a_skipped_drop_check_is_an_error_in_actions(tmp_path, capsys):
+    name = write_manifest(tmp_path, 15, drop="skipped")
+
+    assert ingest(tmp_path, name, {"GITHUB_ACTIONS": "true"}) == 1
+
+    out = capsys.readouterr().out
+    assert "Actions rules: 2 errors" in out
+    # In an annotation % is written %25 (actions/toolkit escaping).
+    assert "::error title=ingest rule::kev: the 1%25 drop check was skipped (no previous ok manifest)" in out
+    assert "Result: FAILED, exit code 1 (2 Actions rule errors)" in out
+
+
+def test_two_sha256_values_of_a_source_on_the_same_day_are_an_error_in_actions(tmp_path, capsys):
+    write_manifest(tmp_path, 15, epss=b"first download")
+    name = write_manifest(tmp_path, 16, epss=b"second download")
+
+    assert ingest(tmp_path, name) == 1
+
+    out = capsys.readouterr().out
+    assert "- epss: the ok manifests of 2026-10-29 record different sha256 values" in out
+    assert sha256(b"first download") in out and sha256(b"second download") in out
+    assert "kev:" not in out.split("Actions rules")[1]  # the same kev in both manifests
