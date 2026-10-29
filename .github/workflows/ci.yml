@@ -1,0 +1,78 @@
+# Continuous integration (CLAUDE.md §3, "GitHub Actions"): lint, unit tests and
+# the dbt sample on every pull request and push to main. No network for data:
+# everything runs on tests/fixtures/; the network is only used to install the
+# pinned uv, Python and packages, so a source that is down never breaks the CI.
+# Actions are pinned to the full commit SHA of a release at least 2 weeks old.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # A newer push to a pull request replaces its running checks; runs on main are never cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  UV_LOCKED: "1"  # every uv command fails if uv.lock would change
+
+jobs:
+  checks:
+    name: Lint, tests and dbt sample
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No version input: setup-uv installs the required-version of pyproject.toml (==0.13.0).
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+
+      - name: Install Python and the locked dependencies
+        run: uv sync --locked
+
+      # The sdist of this dbt dependency downloads its platform wheel and checks it
+      # against its own assets.json (CLAUDE.md §3); this is the expected Linux hash.
+      - name: Check the Linux wheel of dbt-core-experimental-parser
+        run: |
+          expected=44ac29eaf2300d52831501dbdedc90675e79aa7cff0e8bdf625ac72f822f4f58
+          wheel=$(find "$(uv cache dir)" -name 'dbt_core_experimental_parser-2.0.5-py3-none-manylinux_2_28_x86_64.whl' -print -quit)
+          if [ -z "$wheel" ]; then
+            echo "::error::the built wheel of dbt-core-experimental-parser is not in the uv cache"
+            exit 1
+          fi
+          echo "$expected  $wheel" | sha256sum --check
+
+      - name: Lint (ruff check)
+        run: uv run ruff check
+
+      - name: Unit tests (pytest, no network)
+        run: uv run pytest
+
+      - name: Create data/warehouse for DuckDB
+        run: mkdir -p data/warehouse
+
+      - name: dbt build on the sample
+        id: dbt
+        run: uv run dbt build --project-dir dbt --profiles-dir dbt --target fixtures
+
+      - name: Summary of the dbt build
+        if: ${{ !cancelled() && steps.dbt.outcome != 'skipped' }}
+        run: uv run python -m threat_intel_pipeline.report dbt --run-results dbt/target/run_results.json
+
+      - name: The invalid sample fails exactly as expected
+        run: uv run python tests/dbt_invalid_check.py
+
+      - name: Equivalence of incremental and full-refresh marts
+        run: uv run python tests/dbt_equivalence.py
