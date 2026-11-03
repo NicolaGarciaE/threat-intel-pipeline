@@ -54,7 +54,7 @@ jobs:
     env:
       UV_LOCKED: "1"  # every uv command fails if uv.lock would change
     outputs:
-      raw_changed: ${{ steps.changes.outputs.raw_changed }}
+      raw_key: ${{ steps.saved.outputs.raw_key }}  # the mirror key this run saved; empty if it saved none
     steps:
       - name: Check the target
         run: |
@@ -134,11 +134,20 @@ jobs:
           echo "new_manifest=$manifest" >> "$GITHUB_OUTPUT"
 
       - name: Save the mirror of data/raw
+        id: save
         if: ${{ !cancelled() && steps.changes.outputs.raw_changed == 'true' && (env.TARGET != 'real' || github.ref == 'refs/heads/main') }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: data/raw
           key: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # publish and build restore this exact key, also when only they are re-run (CLAUDE.md §4).
+      - name: Record the key of the saved mirror
+        id: saved
+        if: ${{ !cancelled() && steps.save.outcome == 'success' }}
+        env:
+          RAW_KEY: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: echo "raw_key=$RAW_KEY" >> "$GITHUB_OUTPUT"
 
       # Only KEV (CC0): rejected EPSS files never leave the runner (CLAUDE.md §3, "Descargas").
       - name: Keep the KEV files in quarantine as an artifact
@@ -190,16 +199,16 @@ jobs:
         with:
           enable-cache: false
 
-      - name: Restore the mirror saved by the ingest
-        if: needs.ingest.outputs.raw_changed == 'true'
+      - name: Restore the mirror saved by the ingest (its exact key)
+        if: needs.ingest.outputs.raw_key != ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: data/raw
-          key: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ needs.ingest.outputs.raw_key }}
           fail-on-cache-miss: true
 
-      - name: Restore the latest mirror (the ingest added nothing)
-        if: needs.ingest.outputs.raw_changed != 'true'
+      - name: Restore the latest mirror (the ingest saved none)
+        if: needs.ingest.outputs.raw_key == ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: data/raw
@@ -252,16 +261,16 @@ jobs:
       - name: Install Python and the locked dependencies
         run: uv sync --locked --no-dev
 
-      - name: Restore the mirror saved by the ingest
-        if: needs.ingest.outputs.raw_changed == 'true'
+      - name: Restore the mirror saved by the ingest (its exact key)
+        if: needs.ingest.outputs.raw_key != ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: data/raw
-          key: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ needs.ingest.outputs.raw_key }}
           fail-on-cache-miss: true
 
-      - name: Restore the latest mirror (the ingest added nothing)
-        if: needs.ingest.outputs.raw_changed != 'true'
+      - name: Restore the latest mirror (the ingest saved none)
+        if: needs.ingest.outputs.raw_key == ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: data/raw

@@ -1,4 +1,4 @@
-"""Security rules of the GitHub Actions workflows (session 4). No network.
+"""Security and consistency rules of the GitHub Actions workflows (session 4). No network.
 
 Read with PyYAML (a dependency of dbt) and, for the pinned actions, as text,
 because YAML drops the comments that hold their versions. TIP_WORKFLOWS_DIR
@@ -71,6 +71,28 @@ def test_no_pull_request_target_and_no_schedule_yet(name):
     events = set(triggers(load(name)))
     assert "pull_request_target" not in events, f"{name}: pull_request_target"
     assert "schedule" not in events, f"{name}: schedule comes in a later pull request, after the first real run"
+
+
+def test_publish_and_build_restore_the_exact_mirror_key_saved_by_the_ingest():
+    jobs = load("daily.yml")["jobs"]
+    ingest = {step.get("id"): step for step in jobs["ingest"]["steps"]}
+    save, saved = ingest["save"], ingest["saved"]
+    assert save["uses"].startswith("actions/cache/save@") and save["with"]["path"] == "data/raw"
+    assert "steps.save.outcome == 'success'" in saved["if"], "raw_key only after the save step succeeded"
+    assert saved["env"]["RAW_KEY"] == save["with"]["key"], "raw_key must be the key that was saved"
+    assert jobs["ingest"]["outputs"] == {"raw_key": "${{ steps.saved.outputs.raw_key }}"}
+    for name in ("publish", "build"):
+        restores = [
+            step for step in jobs[name]["steps"]
+            if step.get("uses", "").startswith("actions/cache/restore@") and step["with"]["path"] == "data/raw"
+        ]
+        exact = [step for step in restores if step["with"].get("fail-on-cache-miss")]
+        latest = [step for step in restores if not step["with"].get("fail-on-cache-miss")]
+        assert len(exact) == 1 and len(latest) == 1, f"{name}: one exact and one latest restore of data/raw"
+        assert exact[0]["if"] == "needs.ingest.outputs.raw_key != ''", f"{name}: exact restore only with a raw_key"
+        assert exact[0]["with"]["key"] == "${{ needs.ingest.outputs.raw_key }}", f"{name}: not the saved key"
+        assert latest[0]["if"] == "needs.ingest.outputs.raw_key == ''", f"{name}: latest restore only without one"
+        assert latest[0]["with"]["restore-keys"] == "raw-${{ env.TARGET }}-", f"{name}: latest of its own target"
 
 
 def test_only_the_publish_job_can_write():
