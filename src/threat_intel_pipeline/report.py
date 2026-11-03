@@ -12,7 +12,9 @@ and two rules that are errors only in Actions (session 4): a source whose 1% dro
 check was skipped (no reference manifest), and a source recorded ok with two
 different sha256 values on the same snapshot_date. The ingest command keeps them
 as warnings (CLAUDE.md §4) and its files are already saved; the report turns the
-job red so that they are looked at that same day.
+job red so that they are looked at that same day. A drop reference older than the
+day before means days without an ok manifest of that source, a gap that cannot be
+filled (no backfill): it is a ::warning:: annotation and never turns the job red.
 
 Nothing here prints data values: only names, statuses, counts and messages.
 Written to $GITHUB_STEP_SUMMARY (Markdown) when it is set, and always to stdout;
@@ -31,7 +33,7 @@ import json
 import os
 import sys
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -113,16 +115,22 @@ def ingest_report(raw_dir: Path, new_manifest: str | None) -> tuple[list[str], l
         "|---|---|---|---:|---:|---|---|",
     ]
     errors = []
+    old_references = []
+    day = date.fromisoformat(data["snapshot_date"])
     for source, entry in data["sources"].items():
         drop = entry.get("drop_check") or {}
+        checked = short(drop.get("summary")) or "-"
+        age = drop.get("reference_age_days")
+        if type(age) is int and age > 1:
+            checked += f" (reference {age} days old)"
+            old_references.append(_old_reference(source, age, day))
         cells = [
             source, entry["status"], entry.get("action") or "-", _number(entry.get("rows")), _number(entry.get("bytes")),
-            short(drop.get("summary")) or "-", short(entry.get("error")) or "-",
+            checked, short(entry.get("error")) or "-",
         ]
         lines.append("| " + " | ".join(cell.replace("|", "\\|") for cell in cells) + " |")
         if drop.get("status") == "skipped":
             errors.append(f"{source}: the 1% drop check was skipped ({drop.get('reason')}); in Actions every source needs a reference manifest")
-    day = date.fromisoformat(data["snapshot_date"])
     index = load_manifests(raw_dir, day, SOURCES)
     for source in SOURCES:
         recorded: dict[str, str] = {}
@@ -136,11 +144,29 @@ def ingest_report(raw_dir: Path, new_manifest: str | None) -> tuple[list[str], l
     warnings = [str(warning) for warning in data.get("warnings") or []]
     lines += ["", f"Warnings of the manifest ({len(warnings)}):" if warnings else "Warnings of the manifest: none"]
     lines += [f"- {short(warning)}" for warning in warnings]
+    lines += [
+        "",
+        f"Drop references older than one day ({len(old_references)}):" if old_references
+        else "Drop references older than one day: none",
+    ]
+    lines += [f"- {reference}" for reference in old_references]
     lines += ["", f"Actions rules: {len(errors)} errors" if errors else "Actions rules: ok"]
     lines += [f"- {error}" for error in errors]
     annotations = [annotation("warning", "ingest warning", short(warning)) for warning in warnings]
+    annotations += [annotation("warning", "ingest gap", reference) for reference in old_references]
     annotations += [annotation("error", "ingest rule", error) for error in errors]
     return lines, annotations, errors
+
+
+def _old_reference(source: str, age: int, day: date) -> str:
+    """The days between a drop reference ``age`` days old and ``day``, which have no ok manifest of the source."""
+    first, last = day - timedelta(days=age - 1), day - timedelta(days=1)
+    missing = f"on {first}" if first == last else f"from {first} to {last}"
+    count = age - 1
+    return (
+        f"{source}: the 1% drop reference is {age} days old ({day - timedelta(days=age)}): "
+        f"no readable manifest with {source} ok {missing} ({count} day{'s' if count > 1 else ''})"
+    )
 
 
 def _number(value: Any) -> str:

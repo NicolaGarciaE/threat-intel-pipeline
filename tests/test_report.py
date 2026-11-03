@@ -1,7 +1,7 @@
 """Job summaries of a run, from synthetic dbt results and manifests. No network."""
 
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from helpers import sha256, utc
 
@@ -86,14 +86,15 @@ def test_a_missing_or_broken_file_fails(tmp_path, capsys):
 DAY = date(2026, 10, 29)
 
 
-def write_manifest(raw, hour, *, kev=b"kev", epss=b"epss", drop="ok", warnings=()):
+def write_manifest(raw, hour, *, kev=b"kev", epss=b"epss", drop="ok", warnings=(), age=1):
     """A manifest of DAY written with the functions of session 1; a None source failed."""
     results = []
     for name, extension, content in (("kev", "json", kev), ("epss", "csv.gz", epss)):
         check = DropCheck(
             status=drop, rows=1, max_drop_percent=1,
-            reference_snapshot_date=None if drop == "skipped" else date(2026, 10, 28),
+            reference_snapshot_date=None if drop == "skipped" else DAY - timedelta(days=age),
             reference_rows=None if drop == "skipped" else 1,
+            reference_age_days=None if drop == "skipped" else age,
             reason="no previous ok manifest" if drop == "skipped" else None,
         )
         results.append(SourceResult(
@@ -128,6 +129,34 @@ def test_ingest_report_lists_the_sources_and_annotates_the_warnings(tmp_path, ca
     assert "| epss | failed | - | - | - | - | DownloadError: GET https://example.invalid/epss failed |" in out
     assert "Actions rules: ok" in out
     assert "::warning title=ingest warning::orphan temporary file left by an interrupted write: x" in out
+    assert "Drop references older than one day: none" in out and "ingest gap" not in out
+
+
+def test_a_drop_reference_older_than_one_day_is_a_warning_in_actions(tmp_path, capsys):
+    name = write_manifest(tmp_path, 15, age=5)
+
+    assert ingest(tmp_path, name, {"GITHUB_ACTIONS": "true"}) == 0  # a gap cannot be filled: never red
+
+    out = capsys.readouterr().out
+    assert "| kev | ok | downloaded | 1 | 3 | no drop: 1 rows vs 1 on 2026-10-24 (+0) (reference 5 days old) | - |" in out
+    assert "Drop references older than one day (2):" in out
+    # In an annotation % is written %25 (actions/toolkit escaping).
+    assert (
+        "::warning title=ingest gap::kev: the 1%25 drop reference is 5 days old (2026-10-24): "
+        "no readable manifest with kev ok from 2026-10-25 to 2026-10-28 (4 days)"
+    ) in out
+    assert "::warning title=ingest gap::epss: the 1%25 drop reference is 5 days old" in out
+    assert "Actions rules: ok" in out and "::error" not in out
+
+
+def test_a_drop_reference_two_days_old_names_the_one_missing_day(tmp_path, capsys):
+    name = write_manifest(tmp_path, 15, age=2)
+
+    assert ingest(tmp_path, name) == 0
+
+    out = capsys.readouterr().out
+    assert "- kev: the 1% drop reference is 2 days old (2026-10-27): no readable manifest with kev ok on 2026-10-28 (1 day)" in out
+    assert "::warning" not in out  # annotations only inside Actions
 
 
 def test_a_skipped_drop_check_is_an_error_in_actions(tmp_path, capsys):
