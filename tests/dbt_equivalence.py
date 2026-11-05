@@ -188,9 +188,9 @@ class Harness:
         if full_refresh:
             command.append("--full-refresh")
         started = time.monotonic()
-        result = subprocess.run(
+        result = subprocess.run(  # the exit code is checked below, against what the scenario expects
             command, cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            env={**os.environ, "DBT_USE_COLORS": "false"},
+            env={**os.environ, "DBT_USE_COLORS": "false"}, check=False,
         )
         output = result.stdout + result.stderr
         done = next((line.split("Done. ", 1)[1] for line in reversed(output.splitlines()) if "Done. " in line), "")

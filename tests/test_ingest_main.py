@@ -12,7 +12,17 @@ import shutil
 import sys
 
 import pytest
-from helpers import EPSS_ROWS, big_kev, epss_gz, epss_text, fetch_result, gz, kev_bytes, kev_catalog, utc
+from helpers import (
+    EPSS_ROWS,
+    big_kev,
+    epss_gz,
+    epss_text,
+    fetch_result,
+    gz,
+    kev_bytes,
+    kev_catalog,
+    utc,
+)
 
 from threat_intel_pipeline import manifest
 from threat_intel_pipeline.ingest import __main__ as cli
@@ -119,6 +129,23 @@ def test_skipped_drop_check_is_listed_as_a_warning(cli_in):
 
     c.run(utc(27), all_ok(27))  # next day: compared, nothing skipped
     assert c.manifest("manifest_2026-10-27_151703Z.json")["warnings"] == []
+
+
+def test_an_old_reference_is_shown_in_the_summary_but_is_not_a_manifest_warning(cli_in):
+    c = cli_in()
+    c.run(utc(26), all_ok())
+    code, out = c.run(utc(29), all_ok(29))  # nothing downloaded on the 27th and 28th
+    data = c.manifest("manifest_2026-10-29_151703Z.json")
+    drop = data["sources"]["kev"]["drop_check"]
+    assert code == 0
+    assert data["warnings"] == []  # CLAUDE.md §4: the age is recorded in drop_check
+    assert (drop["reference_age_days"], drop["summary"]) == (3, "no drop: 1,800 rows vs 1,800 on 2026-10-26 (+0)")
+    assert "kev: WARNING: reference is 3 days old" in out
+    assert out.count("(reference 3 days old)") == 2  # the summary line of each source
+    assert "Warnings: none" in out
+
+    _, out = c.run(utc(30), all_ok(30))  # a reference from the day before again
+    assert "days old" not in out
 
 
 def test_case_a_second_run_the_same_day_changes_nothing(cli_in):

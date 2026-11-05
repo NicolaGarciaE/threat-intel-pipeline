@@ -1,0 +1,362 @@
+# Daily pipeline (CLAUDE.md §3 and §4, default path while FIRST has not answered):
+#   ingest  (contents: read)  downloads the day's KEV and EPSS into the mirror of data/raw
+#   publish (contents: write) uploads the KEV raw files and manifests that their release lacks, before dbt
+#   build   (contents: read)  completes the mirror, checks it against the manifests and runs dbt
+# The mirror of data/raw (KEV, EPSS and manifests) and the DuckDB database live in the
+# Actions cache. KEV raw files and manifests also live in the data-YYYY-MM releases, and
+# EPSS raw files in the official EPSS archive, accepted only with the sha256 of their manifest.
+# Test targets (test, test2) write only to their own test-data-/test2-data- releases and
+# caches; the real target runs only from main. Actions are pinned to the full commit SHA
+# of a release at least 2 weeks old.
+name: Daily
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where it writes: test or test2 (test releases and caches), or real (the history; main only)"
+        type: choice
+        options: [test, test2, real]
+        default: test
+      simulate_epss_failure:
+        description: "Test targets only: block the EPSS host so that its download fails"
+        type: boolean
+        default: false
+      full_refresh:
+        description: "Rebuild every mart with dbt build --full-refresh"
+        type: boolean
+        default: false
+  # The schedule (cron "17 15 * * *") comes in a later pull request, after the first real run.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+  queue: max  # a run waiting for another one is never cancelled by a newer one
+
+env:
+  TARGET: ${{ inputs.target || 'real' }}  # a scheduled run has no inputs
+  SIMULATE_EPSS_FAILURE: ${{ inputs.simulate_epss_failure || false }}
+  FULL_REFRESH: ${{ inputs.full_refresh || false }}
+  EPSS_ARCHIVE: https://raw.githubusercontent.com/empiricalsec/epss_scores/main
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ingest:
+    name: Download the raw files of the day
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UV_LOCKED: "1"  # every uv command fails if uv.lock would change
+    outputs:
+      raw_key: ${{ steps.saved.outputs.raw_key }}  # the mirror key this run saved; empty if it saved none
+    steps:
+      - name: Check the target
+        run: |
+          case "$TARGET" in
+            real) prefix=data- ;;
+            test) prefix=test-data- ;;
+            test2) prefix=test2-data- ;;
+            *) echo "::error::target must be test, test2 or real"; exit 1 ;;
+          esac
+          if [ "$TARGET" = real ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::target real only runs from refs/heads/main"; exit 1
+          fi
+          if [ "$TARGET" = real ] && [ "$SIMULATE_EPSS_FAILURE" = true ]; then
+            echo "::error::simulate_epss_failure is only for test targets"; exit 1
+          fi
+          echo "RELEASE_PREFIX=$prefix" >> "$GITHUB_ENV"
+          echo "target $TARGET, releases ${prefix}YYYY-MM, ref $GITHUB_REF"
+
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv (the required-version of pyproject.toml)
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+
+      - name: Install Python and the locked dependencies
+        run: uv sync --locked --no-dev
+
+      - name: Restore the latest mirror of data/raw
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/raw
+          key: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: raw-${{ env.TARGET }}-
+
+      - name: List data/raw as restored
+        run: |
+          mkdir -p data/raw
+          find data/raw -maxdepth 1 -type f -printf '%f\n' | sort > "$RUNNER_TEMP/raw-restored.txt"
+          echo "$(wc -l < "$RUNNER_TEMP/raw-restored.txt") files restored"
+
+      - name: Block the EPSS host (simulated failure, test targets only)
+        if: env.SIMULATE_EPSS_FAILURE == 'true'
+        run: |
+          echo "0.0.0.0 epss.empiricalsecurity.com" | sudo tee -a /etc/hosts
+          echo ":: epss.empiricalsecurity.com" | sudo tee -a /etc/hosts
+
+      - name: Bring from the releases the KEV raw files and manifests that the mirror lacks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          uv run python -m threat_intel_pipeline.rebuild sync-releases --raw-dir data/raw
+          --repo "$GITHUB_REPOSITORY" --release-prefix "$RELEASE_PREFIX"
+
+      - name: List data/raw before the ingest
+        run: find data/raw -maxdepth 1 -type f -printf '%f\n' | sort > "$RUNNER_TEMP/raw-before-ingest.txt"
+
+      - name: Download the KEV and EPSS of the day
+        id: ingest
+        run: uv run python -m threat_intel_pipeline.ingest
+
+      - name: Find what changed in data/raw
+        id: changes
+        if: ${{ !cancelled() && steps.ingest.outcome != 'skipped' }}
+        run: |
+          find data/raw -maxdepth 1 -type f -printf '%f\n' | sort > "$RUNNER_TEMP/raw-after.txt"
+          added=$(comm -13 "$RUNNER_TEMP/raw-restored.txt" "$RUNNER_TEMP/raw-after.txt")
+          manifest=$(comm -13 "$RUNNER_TEMP/raw-before-ingest.txt" "$RUNNER_TEMP/raw-after.txt" | grep -E '^manifest_.+\.json$' || true)
+          echo "files added to data/raw by this run: ${added:-none}"
+          if [ -n "$added" ]; then echo "raw_changed=true" >> "$GITHUB_OUTPUT"; else echo "raw_changed=false" >> "$GITHUB_OUTPUT"; fi
+          if [ "$(printf '%s' "$manifest" | grep -c .)" -gt 1 ]; then
+            echo "::error::the ingest wrote more than one manifest"; exit 1
+          fi
+          echo "new_manifest=$manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Save the mirror of data/raw
+        id: save
+        if: ${{ !cancelled() && steps.changes.outputs.raw_changed == 'true' && (env.TARGET != 'real' || github.ref == 'refs/heads/main') }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/raw
+          key: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # publish and build restore this exact key, also when only they are re-run (CLAUDE.md §4).
+      - name: Record the key of the saved mirror
+        id: saved
+        if: ${{ !cancelled() && steps.save.outcome == 'success' }}
+        env:
+          RAW_KEY: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: echo "raw_key=$RAW_KEY" >> "$GITHUB_OUTPUT"
+
+      # Only KEV (CC0): rejected EPSS files never leave the runner (CLAUDE.md §3, "Descargas").
+      - name: Keep the KEV files in quarantine as an artifact
+        if: ${{ !cancelled() && hashFiles('data/quarantine/kev_*') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: kev-quarantine-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/quarantine/kev_*
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Summary of the ingest
+        if: ${{ !cancelled() && steps.changes.outcome == 'success' }}
+        env:
+          NEW_MANIFEST: ${{ steps.changes.outputs.new_manifest }}
+        run: uv run python -m threat_intel_pipeline.report ingest --raw-dir data/raw --new-manifest "$NEW_MANIFEST"
+
+  publish:
+    name: Publish the KEV raw files and manifests
+    needs: ingest
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check the target
+        run: |
+          case "$TARGET" in
+            real) prefix=data- ;;
+            test) prefix=test-data- ;;
+            test2) prefix=test2-data- ;;
+            *) echo "::error::target must be test, test2 or real"; exit 1 ;;
+          esac
+          if [ "$TARGET" = real ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::target real only runs from refs/heads/main"; exit 1
+          fi
+          echo "RELEASE_PREFIX=$prefix" >> "$GITHUB_ENV"
+          echo "target $TARGET, releases ${prefix}YYYY-MM, ref $GITHUB_REF"
+
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No uv cache and no uv sync: this job installs no package (storage.py uses only the standard library).
+      - name: Install uv (the required-version of pyproject.toml)
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: false
+
+      - name: Restore the mirror saved by the ingest (its exact key)
+        if: needs.ingest.outputs.raw_key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/raw
+          key: ${{ needs.ingest.outputs.raw_key }}
+          fail-on-cache-miss: true
+
+      - name: Restore the latest mirror (the ingest saved none)
+        if: needs.ingest.outputs.raw_key == ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/raw
+          key: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: raw-${{ env.TARGET }}-
+
+      - name: Upload what the releases lack (never replaces or deletes)
+        if: env.TARGET != 'real' || github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONPATH: src
+        run: |
+          mkdir -p data/raw
+          uv run --no-project python -m threat_intel_pipeline.storage publish \
+            --repo "$GITHUB_REPOSITORY" --release-prefix "$RELEASE_PREFIX" --raw-dir data/raw
+
+  build:
+    name: Check the raw files and build the marts
+    needs: [ingest, publish]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      UV_LOCKED: "1"
+    steps:
+      - name: Check the target
+        run: |
+          case "$TARGET" in
+            real) prefix=data- ;;
+            test) prefix=test-data- ;;
+            test2) prefix=test2-data- ;;
+            *) echo "::error::target must be test, test2 or real"; exit 1 ;;
+          esac
+          if [ "$TARGET" = real ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::target real only runs from refs/heads/main"; exit 1
+          fi
+          echo "RELEASE_PREFIX=$prefix" >> "$GITHUB_ENV"
+          echo "target $TARGET, releases ${prefix}YYYY-MM, ref $GITHUB_REF"
+
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv (the required-version of pyproject.toml)
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+
+      - name: Install Python and the locked dependencies
+        run: uv sync --locked --no-dev
+
+      - name: Restore the mirror saved by the ingest (its exact key)
+        if: needs.ingest.outputs.raw_key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/raw
+          key: ${{ needs.ingest.outputs.raw_key }}
+          fail-on-cache-miss: true
+
+      - name: Restore the latest mirror (the ingest saved none)
+        if: needs.ingest.outputs.raw_key == ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/raw
+          key: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: raw-${{ env.TARGET }}-
+
+      - name: Restore the latest database
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/warehouse
+          key: db-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: db-${{ env.TARGET }}-
+
+      - name: List data/raw before completing it
+        id: before
+        run: |
+          mkdir -p data/raw data/warehouse
+          find data/raw -maxdepth 1 -type f -printf '%f\n' | sort > "$RUNNER_TEMP/raw-before.txt"
+
+      - name: Bring from the releases the KEV raw files and manifests that the mirror lacks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          uv run python -m threat_intel_pipeline.rebuild sync-releases --raw-dir data/raw
+          --repo "$GITHUB_REPOSITORY" --release-prefix "$RELEASE_PREFIX"
+
+      - name: Bring from the official archive the EPSS raw files that the mirror lacks
+        run: uv run python -m threat_intel_pipeline.rebuild sync-epss --raw-dir data/raw --archive "$EPSS_ARCHIVE"
+
+      - name: Find what the sync added
+        id: added
+        if: ${{ !cancelled() && steps.before.outcome == 'success' }}
+        run: |
+          find data/raw -maxdepth 1 -type f -printf '%f\n' | sort > "$RUNNER_TEMP/raw-after.txt"
+          added=$(comm -13 "$RUNNER_TEMP/raw-before.txt" "$RUNNER_TEMP/raw-after.txt")
+          echo "files added to data/raw by the sync: ${added:-none}"
+          if [ -n "$added" ]; then echo "raw_added=true" >> "$GITHUB_OUTPUT"; else echo "raw_added=false" >> "$GITHUB_OUTPUT"; fi
+
+      # Every file added was checked against its manifest: it is kept even if dbt fails later.
+      - name: Save the completed mirror of data/raw
+        if: ${{ !cancelled() && steps.added.outputs.raw_added == 'true' && (env.TARGET != 'real' || github.ref == 'refs/heads/main') }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/raw
+          key: raw-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}-b
+
+      - name: Check every raw file against its manifest
+        run: uv run python -m threat_intel_pipeline.rebuild verify --raw-dir data/raw
+
+      - name: Plan the dbt build (incremental with test_since, or full refresh)
+        id: plan
+        run: |
+          flags=()
+          if [ "$FULL_REFRESH" = true ]; then flags+=(--full-refresh); fi
+          uv run python -m threat_intel_pipeline.rebuild plan --raw-dir data/raw --database data/warehouse/real.duckdb "${flags[@]}"
+
+      - name: Build and test the models (dbt build)
+        id: dbt
+        env:
+          MODE: ${{ steps.plan.outputs.mode }}
+          TEST_SINCE: ${{ steps.plan.outputs.test_since }}
+        run: |
+          if [ "$MODE" = full ]; then
+            uv run dbt build --project-dir dbt --profiles-dir dbt --target real --full-refresh
+          else
+            uv run dbt build --project-dir dbt --profiles-dir dbt --target real --vars "test_since: $TEST_SINCE"
+          fi
+
+      # Only after a green dbt build: a failed test leaves its model written, and saving it would keep bad data.
+      - name: Save the database
+        if: steps.dbt.outcome == 'success' && (steps.plan.outputs.mode == 'full' || steps.plan.outputs.new_days == 'true') && (env.TARGET != 'real' || github.ref == 'refs/heads/main')
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/warehouse
+          key: db-${{ env.TARGET }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Summary of the dbt build
+        if: ${{ !cancelled() && steps.dbt.outcome != 'skipped' }}
+        run: uv run python -m threat_intel_pipeline.report dbt --run-results dbt/target/run_results.json
+
+      - name: Freshness of the raw files (dbt source freshness)
+        if: ${{ !cancelled() && steps.dbt.outcome != 'skipped' }}
+        run: uv run dbt source freshness --project-dir dbt --profiles-dir dbt --target real
+
+      - name: Size of the mirror and the database (cache size, CLAUDE.md §12)
+        if: ${{ !cancelled() }}
+        run: |
+          du -sh data/raw data/warehouse
+          { echo "### Size of the cached mirror and database"; echo; echo '```'; du -sh data/raw data/warehouse; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

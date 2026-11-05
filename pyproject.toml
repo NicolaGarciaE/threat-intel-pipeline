@@ -24,8 +24,12 @@ testpaths = ["tests"]
 # Only resolve distributions uploaded at least 2 weeks before the session
 # that added them (CLAUDE.md §3). Bump explicitly when adding packages.
 exclude-newer = "2026-10-12T00:00:00Z"
+# The same uv everywhere: uv refuses to run with another version, and
+# astral-sh/setup-uv installs this one in Actions (CLAUDE.md §3).
+required-version = "==0.13.0"
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff==0.17.0",
 ]

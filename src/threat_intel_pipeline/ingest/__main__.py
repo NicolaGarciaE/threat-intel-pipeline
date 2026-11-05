@@ -282,10 +282,15 @@ def _drop_text(drop_check: DropCheck | None) -> str:
     if drop_check is None:
         return "-"
     if drop_check.status == "accepted_by_operator":
-        return f"ACCEPTED BY OPERATOR: {drop_check.describe()}"
-    if drop_check.status == "failed":
-        return f"FAILED: {drop_check.describe()}"
-    return drop_check.describe()
+        text = f"ACCEPTED BY OPERATOR: {drop_check.describe()}"
+    elif drop_check.status == "failed":
+        text = f"FAILED: {drop_check.describe()}"
+    else:
+        text = drop_check.describe()
+    age = drop_check.reference_age_days
+    if age is not None and age > 1:  # days without an ok manifest of the source before this one
+        text += f" (reference {age} days old)"
+    return text
 
 
 def _print_summary(
@@ -319,8 +324,10 @@ def _print_summary(
 
     out = [
         "",
-        f"==== Summary: snapshot_date {snapshot_date.isoformat()}, "
-        f"run_started_at {manifest.format_timestamp(started_at)} ====",
+        (
+            f"==== Summary: snapshot_date {snapshot_date.isoformat()}, "
+            f"run_started_at {manifest.format_timestamp(started_at)} ===="
+        ),
         line(header),
         *(line(row) for row in rows),
     ]

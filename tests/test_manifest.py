@@ -17,9 +17,10 @@ DAY = date(2026, 10, 26)
 SHA_A = "a" * 64
 SHA_B = "b" * 64
 ISO_Z = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+DOWNLOADED_AT = utc(26, 15, 17, 5)
 
 
-def ok(source, sha=SHA_A, rows=10, action="downloaded", downloaded_at=utc(26, 15, 17, 5), drop_status="skipped"):
+def ok(source, sha=SHA_A, rows=10, action="downloaded", downloaded_at=DOWNLOADED_AT, drop_status="skipped"):
     return SourceResult(
         source=source,
         status="ok",

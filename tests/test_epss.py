@@ -7,7 +7,11 @@ import pytest
 from helpers import SNAPSHOT, epss_gz, fixture_bytes, fixture_text, gz
 
 from threat_intel_pipeline.ingest import epss
-from threat_intel_pipeline.ingest.common import EXCERPT_REDACTED, RawValidationError, Reference
+from threat_intel_pipeline.ingest.common import (
+    EXCERPT_REDACTED,
+    RawValidationError,
+    Reference,
+)
 
 CVE = re.compile(r"CVE-\d{4}-\d+", re.IGNORECASE)
 VALID = fixture_text("epss_valid.csv")
