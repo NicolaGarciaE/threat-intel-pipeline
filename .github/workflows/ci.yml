@@ -3,8 +3,8 @@
 # everything runs on tests/fixtures/; the network is only used to install the
 # pinned uv, Python and packages, so a source that is down never breaks the CI.
 # Actions are pinned to the full commit SHA of a release at least 2 weeks old.
-# The job runs on a fixed image, ubuntu-26.04, not ubuntu-latest: a new image only
-# comes in through a pull request.
+# The job runs on a fixed Ubuntu version, ubuntu-26.04, not ubuntu-latest: a new
+# Ubuntu version only comes in through a pull request (the image is still updated).
 name: CI
 
 on:
