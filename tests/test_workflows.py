@@ -67,10 +67,32 @@ def test_no_run_script_interpolates_an_expression(name):
 
 
 @pytest.mark.parametrize("name", FILES)
-def test_no_pull_request_target_and_no_schedule_yet(name):
-    events = set(triggers(load(name)))
+def test_no_pull_request_target_and_only_the_daily_schedule(name):
+    events = triggers(load(name))
     assert "pull_request_target" not in events, f"{name}: pull_request_target"
-    assert "schedule" not in events, f"{name}: schedule comes in a later pull request, after the first real run"
+    expected = [{"cron": "17 15 * * *"}] if name == "daily.yml" else None
+    assert events.get("schedule") == expected, f"{name}: schedule {events.get('schedule')}, expected {expected}"
+
+
+def test_a_scheduled_run_is_real_and_never_simulates_a_failure():
+    # A scheduled run has no inputs: inputs.<name> evaluates to an empty string, so each
+    # value is the fallback after "||". Only these two lines may read those inputs.
+    workflow = load("daily.yml")
+    text = (WORKFLOWS / "daily.yml").read_text(encoding="utf-8")
+    assert workflow["env"]["TARGET"] == "${{ inputs.target || 'real' }}", "a scheduled run must use target real"
+    assert workflow["env"]["SIMULATE_EPSS_FAILURE"] == "${{ inputs.simulate_epss_failure || false }}", (
+        "a scheduled run must never simulate an EPSS failure"
+    )
+    for name in ("inputs.target", "inputs.simulate_epss_failure"):
+        assert text.count(name) == 1, f"daily.yml: {name} is read outside the top-level env"
+    for job_name, job in workflow["jobs"].items():
+        for where in (job, *job["steps"]):
+            redefined = {"TARGET", "SIMULATE_EPSS_FAILURE"} & set(where.get("env") or {})
+            assert not redefined, f"daily.yml, job {job_name}: {sorted(redefined)} redefined in an env"
+    for job_name, step in steps(workflow):
+        assert not re.search(r"\b(TARGET|SIMULATE_EPSS_FAILURE)=", step.get("run", "")), (
+            f"daily.yml, job {job_name}, step {step['name']!r}: a script sets TARGET or SIMULATE_EPSS_FAILURE"
+        )
 
 
 def test_publish_and_build_restore_the_exact_mirror_key_saved_by_the_ingest():

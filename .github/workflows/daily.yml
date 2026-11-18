@@ -26,7 +26,8 @@ on:
         description: "Rebuild every mart with dbt build --full-refresh"
         type: boolean
         default: false
-  # The schedule (cron "17 15 * * *") comes in a later pull request, after the first real run.
+  schedule:
+    - cron: "17 15 * * *"  # 15:17 UTC: EPSS publishes around 13:30 UTC; off the hour (CLAUDE.md §3)
 
 permissions:
   contents: read
