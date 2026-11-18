@@ -3,6 +3,8 @@
 # everything runs on tests/fixtures/; the network is only used to install the
 # pinned uv, Python and packages, so a source that is down never breaks the CI.
 # Actions are pinned to the full commit SHA of a release at least 2 weeks old.
+# The job runs on a fixed Ubuntu version, ubuntu-26.04, not ubuntu-latest: a new
+# Ubuntu version only comes in through a pull request (the image is still updated).
 name: CI
 
 on:
@@ -25,7 +27,7 @@ env:
 jobs:
   checks:
     name: Lint, tests and dbt sample
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - name: Check out the repository

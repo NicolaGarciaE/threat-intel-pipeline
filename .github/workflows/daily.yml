@@ -7,7 +7,8 @@
 # EPSS raw files in the official EPSS archive, accepted only with the sha256 of their manifest.
 # Test targets (test, test2) write only to their own test-data-/test2-data- releases and
 # caches; the real target runs only from main. Actions are pinned to the full commit SHA
-# of a release at least 2 weeks old.
+# of a release at least 2 weeks old. Jobs run on a fixed Ubuntu version, ubuntu-26.04,
+# not ubuntu-latest: a new Ubuntu version only comes in through a pull request.
 name: Daily
 
 on:
@@ -26,7 +27,8 @@ on:
         description: "Rebuild every mart with dbt build --full-refresh"
         type: boolean
         default: false
-  # The schedule (cron "17 15 * * *") comes in a later pull request, after the first real run.
+  schedule:
+    - cron: "17 15 * * *"  # 15:17 UTC: EPSS publishes around 13:30 UTC; off the hour (CLAUDE.md §3)
 
 permissions:
   contents: read
@@ -49,10 +51,11 @@ defaults:
 jobs:
   ingest:
     name: Download the raw files of the day
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
       UV_LOCKED: "1"  # every uv command fails if uv.lock would change
+      UV_NO_DEV: "1"  # uv run would otherwise install the dev group (pytest, ruff), which no job here needs
     outputs:
       raw_key: ${{ steps.saved.outputs.raw_key }}  # the mirror key this run saved; empty if it saved none
     steps:
@@ -169,7 +172,7 @@ jobs:
     name: Publish the KEV raw files and manifests
     needs: ingest
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write
@@ -229,10 +232,11 @@ jobs:
     name: Check the raw files and build the marts
     needs: [ingest, publish]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     env:
       UV_LOCKED: "1"
+      UV_NO_DEV: "1"
     steps:
       - name: Check the target
         run: |
