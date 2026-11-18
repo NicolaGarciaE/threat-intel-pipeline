@@ -55,6 +55,7 @@ jobs:
     timeout-minutes: 30
     env:
       UV_LOCKED: "1"  # every uv command fails if uv.lock would change
+      UV_NO_DEV: "1"  # uv run would otherwise install the dev group (pytest, ruff), which no job here needs
     outputs:
       raw_key: ${{ steps.saved.outputs.raw_key }}  # the mirror key this run saved; empty if it saved none
     steps:
@@ -235,6 +236,7 @@ jobs:
     timeout-minutes: 45
     env:
       UV_LOCKED: "1"
+      UV_NO_DEV: "1"
     steps:
       - name: Check the target
         run: |
