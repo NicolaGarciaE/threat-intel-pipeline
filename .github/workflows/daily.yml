@@ -7,7 +7,8 @@
 # EPSS raw files in the official EPSS archive, accepted only with the sha256 of their manifest.
 # Test targets (test, test2) write only to their own test-data-/test2-data- releases and
 # caches; the real target runs only from main. Actions are pinned to the full commit SHA
-# of a release at least 2 weeks old.
+# of a release at least 2 weeks old. Jobs run on a fixed image, ubuntu-26.04, not
+# ubuntu-latest: a new image only comes in through a pull request.
 name: Daily
 
 on:
@@ -50,7 +51,7 @@ defaults:
 jobs:
   ingest:
     name: Download the raw files of the day
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
       UV_LOCKED: "1"  # every uv command fails if uv.lock would change
@@ -170,7 +171,7 @@ jobs:
     name: Publish the KEV raw files and manifests
     needs: ingest
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write
@@ -230,7 +231,7 @@ jobs:
     name: Check the raw files and build the marts
     needs: [ingest, publish]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     env:
       UV_LOCKED: "1"
